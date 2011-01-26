@@ -1,0 +1,87 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Install file for Values module.
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function values_install() {
+  drupal_install_schema('values');
+}
+
+/**
+ * Implementation of hook_uninnstall().
+ */
+function values_uninstall() {
+  drupal_uninstall_schema('values');
+}
+
+/**
+ * Implementation of hook_schema().
+ */
+function values_schema() {
+  $schema['values_sets'] = array(
+    'description' => t('List of configured value sets.'),
+    'fields' => array(
+      'id' => array(
+        'description' => t(''),
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'description' => array(
+        'description' => t(''),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+        'default' => '',
+      ),
+    ),
+    'unique keys' => array(
+      'id' => array('id'),
+    ),
+    'primary key' => array('id'),
+  );
+  $schema['values_values'] = array(
+    'description' => t(''),
+    'fields' => array(
+      'id' => array(
+        'description' => t('Value set to which the value belongs'),
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'value' => array(
+        'description' => t(''),
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE,
+      ),
+      'label' => array(
+        'description' => t(''),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'weight' => array(
+        'description' => t(''),
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'indexes' => array(
+      'id' => array('id'),
+    ),
+    'unique keys' => array(
+      'id_value' => array('id', 'value'),
+    ),
+    'primary key' => array('id', 'value'),
+  );
+  return $schema;
+}

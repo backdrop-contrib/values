@@ -1,0 +1,45 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Use reusable value sets as allowed values for CCK fields.
+ */
+
+/**
+ * Implementation of hook_field_settings_alter().
+ */
+function values_cck_field_settings_alter(&$form, $op, $field) {
+  switch ($op) {
+    case 'form':
+      $options = array('' => t('- None -'));
+      foreach (values_load_all() as $values) {
+        $options[$values->id] = $values->description;
+      }
+      $form['allowed_values_fieldset']['values_cck'] = array(
+        '#type' => 'select',
+        '#title' => t('Value sets'),
+        '#description' => t('Select a reusable value set to use as allowed values for this field. Configure value sets !here. If this field is filled out, the values returned by this set will override the allowed values list below.', array('!here' => l('here', 'admin/content/values'))),
+        '#options' => $options,
+        '#default_value' => !empty($field['values_cck']) ? $field['values_cck'] : '',
+        '#weight' => -10,
+      );
+      break;
+    case 'save':
+      $form = array_merge($form, array('values_cck'));
+      break;
+  }
+}
+
+/**
+ * Implementation of hook_content_allowed_values_alter().
+ */
+function values_cck_content_allowed_values_alter(&$allowed_values, $field) {
+  if (!empty($field['values_cck'])) {
+    $allowed_values = array();
+    $values = values_load($field['values_cck']);
+    foreach ($values->values as $value) {
+      $allowed_values[$value['value']] = $value['label'];
+    }
+  }
+}
