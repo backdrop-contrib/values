@@ -14,7 +14,22 @@ function values_cck_field_settings_alter(&$form, $op, $field) {
     case 'form':
       $options = array('' => t('- None -'));
       foreach (values_load_all() as $values) {
-        $options[$values->id] = $values->description;
+        // Enforce numeric value sets for numeric fields
+        $numeric = TRUE;
+        if ($field['module'] == 'number') {
+          foreach ($values->values as $value) {
+            if (!is_numeric($value['value'])) {
+              $numeric = FALSE;
+            }
+          }
+          if ($numeric) {
+            $options[$values->id] = $values->description;
+          }
+        }
+        else {
+          // All other fields will be assumed string values
+          $options[$values->id] = $values->description;
+        }
       }
       $form['allowed_values_fieldset']['values_cck'] = array(
         '#type' => 'select',
@@ -43,3 +58,4 @@ function values_cck_content_allowed_values_alter(&$allowed_values, $field) {
     }
   }
 }
+

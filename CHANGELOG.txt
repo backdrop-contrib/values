@@ -1,0 +1,10 @@
+$Id$
+
+Values 6.x-1.1
+--------------
+Make 'values' database field longer.
+Enforce numeric value sets for numeric field types.
+
+Values 6.x-1.0
+--------------
+Initial release for Drupal 6.x.

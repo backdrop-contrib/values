@@ -58,7 +58,7 @@ function values_schema() {
       'value' => array(
         'description' => t(''),
         'type' => 'varchar',
-        'length' => 32,
+        'length' => 255,
         'not null' => TRUE,
       ),
       'label' => array(
@@ -85,3 +85,19 @@ function values_schema() {
   );
   return $schema;
 }
+
+/**
+ * Implementation of hook_update_N().
+ * Make 'value' field longer (255).
+ */
+function values_update_6100(&$sandbox) {
+  $ret = array();
+  $spec = array(
+    'type' => 'varchar',
+    'length' => 255,
+    'not null' => TRUE,
+  );
+  db_change_field($ret, 'values_values', 'value', 'value', $spec);
+  return $ret;
+}
+
