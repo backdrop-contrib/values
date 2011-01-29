@@ -1,5 +1,9 @@
 $Id$
 
+Values 6.x-1.x-dev
+------------------
+Add exporting capabilities and integration with CTools/Features.
+
 Values 6.x-1.1
 --------------
 Make 'values' database field longer.

@@ -100,4 +100,3 @@ function values_update_6100(&$sandbox) {
   db_change_field($ret, 'values_values', 'value', 'value', $spec);
   return $ret;
 }
-
