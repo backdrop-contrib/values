@@ -2,6 +2,8 @@ $Id$
 
 Values 6.x-1.x-dev
 ------------------
+Added export/import functions and Features integration.
+Changed schema to make CTools/Features integration easier.
 #1065248 by drclaw: Verify that there is a value set stored before looping.
 #1065116 by drclaw: Unsaved values get cleared when clicking 'Add more' button.
 Add exporting capabilities and integration with CTools/Features.

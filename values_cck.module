@@ -17,18 +17,20 @@ function values_cck_field_settings_alter(&$form, $op, $field) {
         // Enforce numeric value sets for numeric fields
         $numeric = TRUE;
         if ($field['module'] == 'number') {
-          foreach ($values->values as $value) {
-            if (!is_numeric($value['value'])) {
-              $numeric = FALSE;
+          if (is_array($values->data)) {
+            foreach ($values->data as $value) {
+              if (!is_numeric($value['value'])) {
+                $numeric = FALSE;
+              }
             }
           }
           if ($numeric) {
-            $options[$values->id] = $values->description;
+            $options[$values->name] = $values->description;
           }
         }
         else {
           // All other fields will be assumed string values
-          $options[$values->id] = $values->description;
+          $options[$values->name] = $values->description;
         }
       }
       $form['allowed_values_fieldset']['values_cck'] = array(
@@ -53,7 +55,7 @@ function values_cck_content_allowed_values_alter(&$allowed_values, $field) {
   if (!empty($field['values_cck'])) {
     $allowed_values = array();
     if ($values = values_load($field['values_cck'])) {
-      foreach ($values->values as $value) {
+      foreach ($values->data as $value) {
         $allowed_values[$value['value']] = $value['label'];
       }
     }

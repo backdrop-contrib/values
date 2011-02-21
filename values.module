@@ -40,6 +40,14 @@ function values_menu() {
     'weight' => -9,
     'type' => MENU_LOCAL_TASK,
   );
+  $items['admin/content/values/import'] = array(
+    'title' => 'Import',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('values_import_form'),
+    'access arguments' => array('administer values'),
+    'weight' => -8,
+    'type' => MENU_LOCAL_TASK,
+  );
   $items['admin/content/values/%values'] = array(
     'title' => 'Values',
     'page callback' => 'drupal_get_form',
@@ -63,6 +71,14 @@ function values_menu() {
     'weight' => -8,
     'type' => MENU_LOCAL_TASK,
   );
+  $items['admin/content/values/%values/export'] = array(
+    'title' => 'Export',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('values_export_values', 3),
+    'access arguments' => array('administer values'),
+    'weight' => -7,
+    'type' => MENU_LOCAL_TASK,
+  );
   $items['values/js'] = array(
     'title' => 'Javascript Values Form',
     'page callback' => 'values_form_js',
@@ -84,13 +100,13 @@ function values_list() {
   );
   $rows = array();
   // Get all the configured value sets and create a nice table
-  $query = db_query('SELECT * FROM {values_sets}');
+  $query = db_query('SELECT * FROM {values_list}');
   while ($values = db_fetch_object($query)) {
     $rows[] = array(
-      $values->id,
+      $values->name,
       $values->description,
-      l(t('edit'), 'admin/content/values/' . $values->id . '/edit'),
-      l(t('delete'), 'admin/content/values/' . $values->id . '/delete'),
+      l(t('edit'), 'admin/content/values/' . $values->name . '/edit'),
+      l(t('delete'), 'admin/content/values/' . $values->name . '/delete'),
     );
   }
   return theme_table($header, $rows);
@@ -101,7 +117,7 @@ function values_list() {
  */
 function values_form(&$form_state, $action = 'edit', $values = NULL) {
   if ($form_state['values_count']) {
-    $values->values = $form_state['values']['values'];
+    $values->data = $form_state['values']['data'];
   }
   else {
     $values = values_load($values, TRUE);
@@ -111,14 +127,14 @@ function values_form(&$form_state, $action = 'edit', $values = NULL) {
     '#type' => 'value',
     '#value' => $action,
   );
-  $form['id'] = array(
+  $form['name'] = array(
     '#type' => 'textfield',
     '#title' => t('Value set name'),
-    '#description' => t('This is the unique id of the value set. It must contain only alphanumeric characters and underscores; it is used to identify the values internally.'),
-    '#default_value' => $values ? $values->id : '',
+    '#description' => t('This is the unique ID of the value set. It must contain only alphanumeric characters and underscores; it is used to identify the values internally.'),
+    '#default_value' => $values ? $values->name : '',
     '#required' => TRUE,
     '#weight' => -10,
-    '#access' => !isset($values->id),
+    '#access' => !isset($values->name),
   );
   $form['description'] = array(
     '#type' => 'textfield',
@@ -133,7 +149,7 @@ function values_form(&$form_state, $action = 'edit', $values = NULL) {
     $values_count = $form_state['values_count'];
   }
   else {
-    $values_count = max(2, empty($values->values) ? 2 : count($values->values));
+    $values_count = max(2, empty($values->data) ? 2 : count($values->data));
   }
   // Wrapper for values
   $form['values_wrapper'] = array(
@@ -145,7 +161,7 @@ function values_form(&$form_state, $action = 'edit', $values = NULL) {
     '#weight' => -8,
   );
   // Container for value fields
-  $form['values_wrapper']['values'] = array(
+  $form['values_wrapper']['data'] = array(
     '#tree' => TRUE,
     '#prefix' => '<div id="values-values">',
     '#suffix' => '</div>',
@@ -154,24 +170,24 @@ function values_form(&$form_state, $action = 'edit', $values = NULL) {
   );
   // Add the current values to the form.
   for ($delta = 0; $delta < $values_count; $delta++) {
-    $form['values_wrapper']['values'][$delta] = array(
+    $form['values_wrapper']['data'][$delta] = array(
       'value' => array(
         '#type' => 'textfield',
         '#title' => t('Value @n', array('@n' => ($delta + 1))),
-        '#default_value' => isset($values->values[$delta]['value']) ? $values->values[$delta]['value'] : '',
+        '#default_value' => isset($values->data[$delta]['value']) ? $values->data[$delta]['value'] : '',
         '#size' => 4,
         '#maxlength' => 32,
       ),
       'label' => array(
         '#type' => 'textfield',
         '#title' => t('Label for value @n', array('@n' => ($delta + 1))),
-        '#default_value' => isset($values->values[$delta]['label']) ? $values->values[$delta]['label'] : '',
+        '#default_value' => isset($values->data[$delta]['label']) ? $values->data[$delta]['label'] : '',
         '#access' => user_access('administer values'),
       ),
       'weight' => array(
         '#type' => 'weight',
         '#delta' => $values_count,
-        '#default_value' => isset($values->values[$delta]['weight']) ? $values->values[$delta]['weight'] : 0,
+        '#default_value' => isset($values->data[$delta]['weight']) ? intval($values->data[$delta]['weight']) : 0,
       ),
     );
   }
@@ -206,7 +222,7 @@ function values_add_more_submit($form, &$form_state) {
   // Make the changes we want to the form state.
   if ($form_state['values']['values_add_more']) {
     $n = $_GET['q'] == 'values/js' ? 1 : 5;
-    $form_state['values_count'] = count($form_state['values']['values']) + $n;
+    $form_state['values_count'] = count($form_state['values']['data']) + $n;
   }
 }
 
@@ -233,7 +249,7 @@ function values_form_js() {
   // drupal_process_form set up.
   $form = drupal_rebuild_form($form_id, $form_state, $args, $form_build_id);
   // Render the new output.
-  $values_form = $form['values_wrapper']['values'];
+  $values_form = $form['values_wrapper']['data'];
   // Prevent duplicate wrappers.
   unset($values_form['#prefix'], $values_form['#suffix']);
   $output = theme('status_messages') . drupal_render($values_form);
@@ -244,16 +260,16 @@ function values_form_js() {
  * Validates the values form.
  */
 function values_form_validate(&$form, &$form_state) {
-  $id = $form_state['values']['id'];
-  // Value set id must be alphanumeric or underscores, no other punctuation
-  if (preg_match('/[^a-zA-Z0-9_]/', $id)) {
-    form_set_error('id', t('Value set name must be alphanumeric or underscores only.'));
+  $name = $form_state['values']['name'];
+  // Values name must be alphanumeric or underscores, no other punctuation
+  if (preg_match('/[^a-zA-Z0-9_]/', $name)) {
+    form_set_error('name', t('Value set name must be alphanumeric or underscores only.'));
   }
-  // Value set id must be unique
+  // Values name must be unique
   if ($form_state['values']['action'] == 'add') {
-    $values = values_load($id);
+    $values = values_load($name);
     if ($values) {
-      form_set_error('id', t('You must use a unique name for this value set.'));
+      form_set_error('name', t('You must use a unique name for this value set.'));
     }
   }
 }
@@ -263,11 +279,11 @@ function values_form_validate(&$form, &$form_state) {
  */
 function values_form_submit(&$form, &$form_state) {
   $values = new stdClass;
-  $values->id = $form_state['values']['id'];
+  $values->name = $form_state['values']['name'];
   $values->description = $form_state['values']['description'];
-  $values->values = array();
-  foreach ($form_state['values']['values'] as $value) {
-    $values->values[] = array(
+  $values->data = array();
+  foreach ($form_state['values']['data'] as $value) {
+    $values->data[] = array(
       'value' => $value['value'],
       'label' => $value['label'],
       'weight' => $value['weight'],
@@ -280,29 +296,29 @@ function values_form_submit(&$form, &$form_state) {
 /**
  * Loads values object from the database.
  */
-function values_load($id, $reset = FALSE) {
-  static $values_sets;
-  if (is_object($id)) {
-    $id = $id->id;
+function values_load($name, $reset = FALSE) {
+  if (is_object($name)) {
+    $name = $name->name;
   }
-  if (!$reset && !empty($values_sets[$id])) {
-    return $values_sets[$id];
-  }
-  $values = db_fetch_object(db_query("SELECT * FROM {values_sets} WHERE id = '%s'", $id));
-  if (!empty($values)) {
-    $values->values = array();
-    $query = db_query("SELECT * FROM {values_values} WHERE id = '%s' ORDER BY weight ASC", $values->id);
-    while ($value = db_fetch_object($query)) {
-      $values->values[] = array(
-        'value' => $value->value,
-        'label' => $value->label,
-        'weight' => $value->weight,
-      );
-    }
-    $values_sets[$id] = $values;
-    return $values_sets[$id];
+  ctools_include('export');
+  $values = ctools_export_load_object('values_list', 'names', array($name));
+  if (isset($values[$name])) {
+    usort($values[$name]->data, 'values_sort_by_weight');
+    return $values[$name];
   }
   return FALSE;
+}
+
+/**
+ * Sort list of values by weight.
+ */
+function values_sort_by_weight($a, $b) {
+  $a_weight = (is_array($a) && isset($a['weight'])) ? $a['weight'] : 0;
+  $b_weight = (is_array($b) && isset($b['weight'])) ? $b['weight'] : 0;
+  if ($a_weight == $b_weight) {
+    return 0;
+  }
+  return ($a_weight < $b_weight) ? -1 : 1;
 }
 
 /**
@@ -310,9 +326,9 @@ function values_load($id, $reset = FALSE) {
  */
 function values_load_all() {
   $values_sets = array();
-  $query = db_query('SELECT id FROM {values_sets} ORDER BY description ASC');
+  $query = db_query('SELECT name FROM {values_list} ORDER BY description ASC');
   while ($values = db_fetch_object($query)) {
-    $values_sets[] = values_load($values->id);
+    $values_sets[] = values_load($values->name);
   }
   return $values_sets;
 }
@@ -322,25 +338,16 @@ function values_load_all() {
  */
 function values_save($values) {
   // Delete existing values
-  values_delete($values->id);
+  values_delete($values->name);
   // Create a new value set object
   $set = new stdClass;
-  $set->id = $values->id;
+  $set->name = $values->name;
   $set->description = $values->description;
-  if ($success = drupal_write_record('values_sets', $set)) {
-    // Create new key-label pairs
-    foreach ($values->values as $option) {
-      if (strlen($option['value'])) {
-        $value = array(
-          'id' => $values->id,
-          'value' => $option['value'],
-          'label' => $option['label'],
-          'weight' => $option['weight'],
-        );
-        drupal_write_record('values_values', $value);
-      }
-    }
-    drupal_set_message(t('Value set !id was saved.', array('!id' => $values->id)));
+  usort($values->data, 'values_sort_by_weight');
+  $set->data = $values->data;
+  // Write to the database
+  if ($success = drupal_write_record('values_list', $set)) {
+    drupal_set_message(t('Value set !name was saved.', array('!name' => $values->name)));
   }
 }
 
@@ -348,12 +355,12 @@ function values_save($values) {
  * Confirmation form to delete a value object from the database.
  */
 function values_delete_confirm(&$form_state, $values) {
-  $form['id'] = array(
+  $form['name'] = array(
     '#type' => 'value', 
-    '#value' => $values->id,
+    '#value' => $values->name,
   );
   return confirm_form($form, 
-    t('Are you sure you want to delete follow-up !id?', array('!id' => $values->id)), 
+    t('Are you sure you want to delete !name?', array('!name' => $values->name)), 
     'admin/content/values',
     t('This action cannot be undone.'), 
     t('Delete'), 
@@ -365,19 +372,18 @@ function values_delete_confirm(&$form_state, $values) {
  * Calls deletion of a value object.
  */
 function values_delete_confirm_submit(&$form, &$form_state) {
-  values_delete($form_state['values']['id']);
-  drupal_set_message(t('Value set !id was deleted.', array('!id' => $form_state['values']['id'])));
+  values_delete($form_state['values']['name']);
+  drupal_set_message(t('Value list !name was deleted.', array('!name' => $form_state['values']['name'])));
 }
 
 /**
  * Deletes a value object from the database.
  */
-function values_delete($id) {
-  if (is_object($id)) {
-    $id = $id->id;
+function values_delete($name) {
+  if (is_object($name)) {
+    $name = $name->name;
   }
-  db_query("DELETE FROM {values_values} WHERE id = '%s'", $id);
-  db_query("DELETE FROM {values_sets} WHERE id = '%s'", $id);
+  db_query("DELETE FROM {values_list} WHERE name = '%s'", $name);
 }
 
 /**
@@ -418,4 +424,70 @@ function theme_values_value_fields($form) {
   drupal_add_css(drupal_get_path('module', 'values') . '/values.css');
   drupal_add_tabledrag('values-value-list', 'order', 'sibling', 'values-weight-group');
   return theme('table', $headers, $rows, array('id' => 'values-value-list')) . drupal_render($form);
+}
+
+/**
+ * Export a value list and display it in a form.
+ */
+function values_export_values(&$form_state, $values) {
+  drupal_set_title(check_plain($values->description));
+  $code = values_export($values);
+  $lines = substr_count($code, "\n");
+  $form['export'] = array(
+    '#title' => t('Export data'),
+    '#type' => 'textarea',
+    '#value' => $code,
+    '#rows' => $lines,
+    '#description' => t('Copy the export text and paste it into another value list using the import function.'),
+  );
+  return $form;
+}
+
+/**
+ * Export a values list.
+ */
+function values_export($values, $indent = '') {
+  ctools_include('export');
+  $output = ctools_export_object('values_list', $values, $indent);
+  return $output;
+}
+
+/**
+ * Import a value list
+ */
+function values_import_form(&$form_state) {
+  drupal_set_message(t('Importing a value list with a conflicting name will override it.'), 'warning');
+  $form['import'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Import data'),
+    '#description' => t('Copy the text from an previously exported value list and paste it here.'),
+    '#default_value' => isset($form_state['values']['import']) ? $form_state['values']['import'] : '',
+    '#rows' => 10,
+  );
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Import'),
+  );
+  return $form;
+}
+
+/**
+ * Submit function for value list import.
+ */
+function values_import_form_submit(&$form, &$form_state) {
+  $code = $form_state['values']['import'] . "\nreturn \$values;";
+  $values = eval($code);
+  values_save($values);
+  $form_state['redirect'] = 'admin/content/values/' . $values->name;
+}
+
+/**
+ * Implementation of hook_ctools_plugin_api().
+ *
+ * Tell CTools that we support the default_values_list API.
+ */
+function values_ctools_plugin_api($owner, $api) {
+  if ($owner == 'values' && $api == 'default_values_list') {
+    return array('version' => 1);
+  }
 }

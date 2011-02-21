@@ -24,64 +24,41 @@ function values_uninstall() {
  * Implementation of hook_schema().
  */
 function values_schema() {
-  $schema['values_sets'] = array(
-    'description' => t('List of configured value sets.'),
+  $schema['values_list'] = array(
+    'description' => t('List of configured value lists.'),
+    'export' => array(
+      'key' => 'name',
+      'identifier' => 'values',
+      'default hook' => 'default_values_values',
+      'api' => array(
+        'owner' => 'values',
+        'api' => 'default_values_list',
+        'minimum_version' => 1,
+        'current_version' => 1,
+      ),
+    ),
     'fields' => array(
-      'id' => array(
-        'description' => t(''),
+      'name' => array(
+        'description' => t('Unique ID for value lists.'),
         'type' => 'varchar',
-        'length' => 32,
-        'not null' => TRUE,
+        'length' => 255,
       ),
       'description' => array(
-        'description' => t(''),
+        'description' => t('A human-readable name of a value list'),
         'type' => 'varchar',
         'length' => 255,
-        'not null' => TRUE,
-        'default' => '',
+      ),
+      'data' => array(
+        'description' => t('Configured list of values.'),
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
       ),
     ),
     'unique keys' => array(
-      'id' => array('id'),
+      'name' => array('name'),
     ),
-    'primary key' => array('id'),
-  );
-  $schema['values_values'] = array(
-    'description' => t(''),
-    'fields' => array(
-      'id' => array(
-        'description' => t('Value set to which the value belongs'),
-        'type' => 'varchar',
-        'length' => 32,
-        'not null' => TRUE,
-      ),
-      'value' => array(
-        'description' => t(''),
-        'type' => 'varchar',
-        'length' => 255,
-        'not null' => TRUE,
-      ),
-      'label' => array(
-        'description' => t(''),
-        'type' => 'varchar',
-        'length' => 255,
-        'not null' => TRUE,
-      ),
-      'weight' => array(
-        'description' => t(''),
-        'type' => 'int',
-        'size' => 'tiny',
-        'not null' => TRUE,
-        'default' => 0,
-      ),
-    ),
-    'indexes' => array(
-      'id' => array('id'),
-    ),
-    'unique keys' => array(
-      'id_value' => array('id', 'value'),
-    ),
-    'primary key' => array('id', 'value'),
+    'primary key' => array('name'),
   );
   return $schema;
 }
@@ -98,5 +75,69 @@ function values_update_6100(&$sandbox) {
     'not null' => TRUE,
   );
   db_change_field($ret, 'values_values', 'value', 'value', $spec);
+  return $ret;
+}
+
+/**
+ * Implementation of hook_update_N().
+ * Condense schema into a single table to handle exportables easily.
+ */
+function values_update_6101(&$sandbox) {
+  $ret = array();
+  // Define the new table
+  $schema['values_list'] = array(
+    'description' => t('List of configured value lists.'),
+    'export' => array(
+      'key' => 'name',
+      'identifier' => 'values',
+      'default hook' => 'default_values_values',
+      'api' => array(
+        'owner' => 'values',
+        'api' => 'default_values_list',
+        'minimum_version' => 1,
+        'current_version' => 1,
+      ),
+    ),
+    'fields' => array(
+      'name' => array(
+        'description' => t('Unique ID for value lists.'),
+        'type' => 'varchar',
+        'length' => 255,
+      ),
+      'description' => array(
+        'description' => t('A human-readable name of a value list'),
+        'type' => 'varchar',
+        'length' => 255,
+      ),
+      'data' => array(
+        'description' => t('Configured list of values.'),
+        'type' => 'text',
+        'size' => 'big',
+        'serialize' => TRUE,
+      ),
+    ),
+    'unique keys' => array(
+      'name' => array('name'),
+    ),
+    'primary key' => array('name'),
+  );
+  db_create_table($ret, 'values_list', $schema['values_list']);
+  // Migrate existing data to the new schema
+  $values_sets = db_query('SELECT * FROM {values_sets}');
+  while ($set = db_fetch_object($values_sets)) {
+    $values = new stdClass;
+    $values->name = $set->id;
+    $values->description = $set->description;
+    $values->data = array();
+    $values_values = db_query("SELECT * FROM {values_values} WHERE id = '%s' ORDER BY weight ASC", $set->id);
+    while ($value = db_fetch_array($values_values)) {
+      unset($value['id']);
+      $values->data[] = $value;
+    }
+    drupal_write_record('values_list', $values);
+  }
+  // Remove old tables
+  db_drop_table($ret, 'values_sets');
+  db_drop_table($ret, 'values_values');
   return $ret;
 }
