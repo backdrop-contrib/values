@@ -2,6 +2,8 @@ $Id$
 
 Values 6.x-1.x-dev
 ------------------
+#1065248 by drclaw: Verify that there is a value set stored before looping.
+#1065116 by drclaw: Unsaved values get cleared when clicking 'Add more' button.
 Add exporting capabilities and integration with CTools/Features.
 
 Values 6.x-1.1

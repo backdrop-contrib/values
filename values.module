@@ -100,7 +100,12 @@ function values_list() {
  * Form for adding a new value set.
  */
 function values_form(&$form_state, $action = 'edit', $values = NULL) {
-  $values = values_load($values, TRUE);
+  if ($form_state['values_count']) {
+    $values->values = $form_state['values']['values'];
+  }
+  else {
+    $values = values_load($values, TRUE);
+  }
   $form = array();
   $form['action'] = array(
     '#type' => 'value',
