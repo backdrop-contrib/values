@@ -148,4 +148,6 @@ function values_update_6101(&$sandbox) {
  */
 function values_update_6102(&$sandbox) {
   menu_cache_clear_all();
+  drupal_set_message(t('Menu cache cleared.'));
+  return array();
 }

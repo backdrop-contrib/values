@@ -75,8 +75,7 @@ function values_menu() {
     'title' => 'Export',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_export_values', 3),
-    'access callback' => 'module_exists',
-    'access arguments' => array('ctools'),
+    'access arguments' => array('administer values'),
     'weight' => -7,
     'type' => MENU_LOCAL_TASK,
   );
@@ -444,6 +443,11 @@ function theme_values_value_fields($form) {
  * Export a value list and display it in a form.
  */
 function values_export_values(&$form_state, $values) {
+  if (!module_exists('ctools')) {
+    return array('message' => array(
+      '#value' => t('For exporting capabilities, please install the !ctools module.', array('!ctools' => l('Chaos tools suite', 'http://drupal.org/project/ctools'))),
+    ));
+  }
   drupal_set_title(check_plain($values->description));
   $code = values_export($values);
   $lines = substr_count($code, "\n");
