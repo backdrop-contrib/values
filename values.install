@@ -141,3 +141,11 @@ function values_update_6101(&$sandbox) {
   db_drop_table($ret, 'values_values');
   return $ret;
 }
+
+/**
+ * Implementation of hook_update_N().
+ * Clear menu caches to enable new menu items.
+ */
+function values_update_6102(&$sandbox) {
+  menu_cache_clear_all();
+}

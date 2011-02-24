@@ -2,6 +2,7 @@ $Id$
 
 Values 6.x-1.x-dev
 ------------------
+Added an update hook to clear the menu caches.
 Make CTools dependency optional.
 Added export/import functions and Features integration.
 Changed schema to make CTools/Features integration easier.
