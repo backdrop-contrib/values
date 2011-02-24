@@ -75,7 +75,8 @@ function values_menu() {
     'title' => 'Export',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_export_values', 3),
-    'access arguments' => array('administer values'),
+    'access callback' => 'module_exists',
+    'access arguments' => array('ctools'),
     'weight' => -7,
     'type' => MENU_LOCAL_TASK,
   );
@@ -300,9 +301,22 @@ function values_load($name, $reset = FALSE) {
   if (is_object($name)) {
     $name = $name->name;
   }
-  ctools_include('export');
-  $values = ctools_export_load_object('values_list', 'names', array($name));
-  if (isset($values[$name])) {
+  if (module_exists('ctools')) {
+    // Try using Chaos tools suite for exporting and caching
+    ctools_include('export');
+    $values = ctools_export_load_object('values_list', 'names', array($name));
+  }
+  else {
+    // In the absence of ctools, use our own basic static caching
+    static $values = array();
+    if ($reset || !isset($values[$name])) {
+      $values[$name] = db_fetch_object(db_query("SELECT * FROM {values_list} WHERE name = '%s'", $name));
+      if (isset($values[$name]->data)) {
+        $values[$name]->data = unserialize($values[$name]->data);
+      }
+    }
+  }
+  if ($name && isset($values[$name])) {
     usort($values[$name]->data, 'values_sort_by_weight');
     return $values[$name];
   }

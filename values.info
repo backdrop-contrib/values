@@ -3,4 +3,3 @@ name = Values
 description = API for managing reusable value sets.
 package = Form Elements
 core = 6.x
-dependencies[] = ctools

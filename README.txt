@@ -21,6 +21,11 @@ value sets.
 To add a new value set, click on Add and fill out the information. You will be
 able to define the value-label pair for each option.
 
+Dependencies
+============
+This module can be used by itself. However, exporting capabilities are provided
+by enabling the Chaos tools suite module (ctools).
+
 To do
 =====
 For the Values CCK sub-module, implement a database update routine that will
