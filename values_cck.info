@@ -1,4 +1,3 @@
-; $Id$
 name = Values CCK
 description = Use reusable value sets as allowed values for CCK fields.
 package = Form Elements

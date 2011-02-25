@@ -1,4 +1,3 @@
-; $Id$
 name = Values
 description = API for managing reusable value sets.
 package = Form Elements
