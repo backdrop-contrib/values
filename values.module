@@ -6,32 +6,35 @@
  */
 
 /**
- * Implementation of hook_perm().
+ * Implements hook_permission().
  */
-function values_perm() {
+function values_permission() {
   return array(
-    'administer values',
+    'administer values' => array(
+      'title' => t('Administer values'),
+      'description' => t('Allows the creation and configuration of reusable value sets.'),
+    ),
   );
 }
 
 /**
- * Implementation of hook_menu().
+ * Implements hook_menu().
  */
 function values_menu() {
   $items = array();
-  $items['admin/content/values'] = array(
+  $items['admin/structure/values'] = array(
     'title' => 'Values',
     'page callback' => 'values_list',
     'access arguments' => array('administer values'),
   );
-  $items['admin/content/values/list'] = array(
+  $items['admin/structure/values/list'] = array(
     'title' => 'List',
     'page callback' => 'values_list',
     'access arguments' => array('administer values'),
     'weight' => -10,
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
-  $items['admin/content/values/add'] = array(
+  $items['admin/structure/values/add'] = array(
     'title' => 'Add',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'add'),
@@ -39,7 +42,7 @@ function values_menu() {
     'weight' => -9,
     'type' => MENU_LOCAL_TASK,
   );
-  $items['admin/content/values/import'] = array(
+  $items['admin/structure/values/import'] = array(
     'title' => 'Import',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_import_form'),
@@ -47,14 +50,14 @@ function values_menu() {
     'weight' => -8,
     'type' => MENU_LOCAL_TASK,
   );
-  $items['admin/content/values/%values'] = array(
+  $items['admin/structure/values/%values'] = array(
     'title' => 'Values',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'edit', 3),
     'access arguments' => array('administer values'),
     'type' => MENU_CALLBACK,
   );
-  $items['admin/content/values/%values/edit'] = array(
+  $items['admin/structure/values/%values/edit'] = array(
     'title' => 'Edit',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'edit', 3),
@@ -62,7 +65,7 @@ function values_menu() {
     'weight' => -9,
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
-  $items['admin/content/values/%values/delete'] = array(
+  $items['admin/structure/values/%values/delete'] = array(
     'title' => 'Delete',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_delete_confirm', 3),
@@ -70,7 +73,7 @@ function values_menu() {
     'weight' => -8,
     'type' => MENU_LOCAL_TASK,
   );
-  $items['admin/content/values/%values/export'] = array(
+  $items['admin/structure/values/%values/export'] = array(
     'title' => 'Export',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_export_values', 3),
@@ -104,8 +107,8 @@ function values_list() {
     $rows[] = array(
       $values->name,
       $values->description,
-      l(t('edit'), 'admin/content/values/' . $values->name . '/edit'),
-      l(t('delete'), 'admin/content/values/' . $values->name . '/delete'),
+      l(t('edit'), 'admin/structure/values/' . $values->name . '/edit'),
+      l(t('delete'), 'admin/structure/values/' . $values->name . '/delete'),
     );
   }
   return theme_table($header, $rows);
@@ -114,7 +117,7 @@ function values_list() {
 /**
  * Form for adding a new value set.
  */
-function values_form(&$form_state, $action = 'edit', $values = NULL) {
+function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
   if ($form_state['values_count']) {
     $values->data = $form_state['values']['data'];
   }
@@ -229,14 +232,17 @@ function values_add_more_submit($form, &$form_state) {
  * Menu callback for AHAH additions.
  */
 function values_form_js() {
-  $form_state = array('storage' => NULL, 'submitted' => FALSE);
+  $form_state = array(
+    'storage' => NULL,
+    'submitted' => FALSE,
+  );
   $form_build_id = $_POST['form_build_id'];
   // Get the form from the cache.
   $form = form_get_cache($form_build_id, $form_state);
   $args = $form['#parameters'];
   $form_id = array_shift($args);
   // We will run some of the submit handlers so we need to disable redirecting.
-  $form['#redirect'] = FALSE;
+  $form_state['#redirect'] = FALSE;
   // We need to process the form, prepare for that by setting a few internals
   // variables.
   $form['#post'] = $_POST;
@@ -251,8 +257,9 @@ function values_form_js() {
   $values_form = $form['values_wrapper']['data'];
   // Prevent duplicate wrappers.
   unset($values_form['#prefix'], $values_form['#suffix']);
+  // TODO Please change this theme call to use an associative array for the $variables parameter.
   $output = theme('status_messages') . drupal_render($values_form);
-  drupal_json(array('status' => TRUE, 'data' => $output));
+  drupal_json_output(array('status' => TRUE, 'data' => $output));
 }
 
 /**
@@ -289,36 +296,41 @@ function values_form_submit(&$form, &$form_state) {
     );
   }
   values_save($values);
-  $form_state['redirect'] = 'admin/content/values';
+  $form_state['redirect'] = 'admin/structure/values';
 }
 
 /**
  * Loads values object from the database.
  */
-function values_load($name, $reset = FALSE) {
-  if (is_object($name)) {
-    $name = $name->name;
-  }
-  if (module_exists('ctools')) {
-    // Try using Chaos tools suite for exporting and caching
-    ctools_include('export');
-    $values = ctools_export_load_object('values_list', 'names', array($name));
-  }
-  else {
-    // In the absence of ctools, use our own basic static caching
-    static $values = array();
-    if ($reset || !isset($values[$name])) {
-      $values[$name] = db_fetch_object(db_query("SELECT * FROM {values_list} WHERE name = '%s'", $name));
-      if (isset($values[$name]->data)) {
-        $values[$name]->data = unserialize($values[$name]->data);
+function values_load($names, $reset = FALSE) {
+  foreach ($names as $nid => &$name) {
+    if (is_object($name)) {
+      $name = $name->name;
+    }
+    if (module_exists('ctools')) {
+      // Try using Chaos tools suite for exporting and caching
+      ctools_include('export');
+      $values = ctools_export_load_object('values_list', 'names', array($name));
+    }
+    else {
+      // In the absence of ctools, use our own basic static caching
+      static $values = array();
+      if ($reset || !isset($values[$name])) {
+        $values[$name] = db_fetch_object(db_query("SELECT * FROM {values_list} WHERE name = :name", array(':name' => $name)));
+        if (isset($values[$name]->data)) {
+          $values[$name]->data = unserialize($values[$name]->data);
+        }
       }
     }
+    if ($name && isset($values[$name])) {
+      usort($values[$name]->data, 'values_sort_by_weight');
+      return $values[$name];
+    }
+    $node_additions = FALSE;
+    foreach ($node_additions as $property => &$value) {
+      $name->$property = $value;
+    }
   }
-  if ($name && isset($values[$name])) {
-    usort($values[$name]->data, 'values_sort_by_weight');
-    return $values[$name];
-  }
-  return FALSE;
 }
 
 /**
@@ -366,16 +378,16 @@ function values_save($values) {
 /**
  * Confirmation form to delete a value object from the database.
  */
-function values_delete_confirm(&$form_state, $values) {
+function values_delete_confirm($form, &$form_state, $values) {
   $form['name'] = array(
-    '#type' => 'value', 
+    '#type' => 'value',
     '#value' => $values->name,
   );
-  return confirm_form($form, 
-    t('Are you sure you want to delete !name?', array('!name' => $values->name)), 
-    'admin/content/values',
-    t('This action cannot be undone.'), 
-    t('Delete'), 
+  return confirm_form($form,
+    t('Are you sure you want to delete !name?', array('!name' => $values->name)),
+    'admin/structure/values',
+    t('This action cannot be undone.'),
+    t('Delete'),
     t('Cancel')
   );
 }
@@ -395,16 +407,20 @@ function values_delete($name) {
   if (is_object($name)) {
     $name = $name->name;
   }
-  db_query("DELETE FROM {values_list} WHERE name = '%s'", $name);
+  // TODO Please review the conversion of this statement to the D7 database API syntax.
+  /* db_query("DELETE FROM {values_list} WHERE name = '%s'", $name) */
+  db_delete('values_list')
+  ->condition('name', $name)
+  ->execute();
 }
 
 /**
- * Implementation of hook_theme().
+ * Implements hook_theme().
  */
 function values_theme() {
   return array(
     'values_value_fields' => array(
-      'arguments' => array('form' => NULL),
+      'render element' => 'form',
     ),
   );
 }
@@ -414,7 +430,8 @@ function values_theme() {
  *
  * @ingroup themeable
  */
-function theme_values_value_fields($form) {
+function theme_values_value_fields($variables) {
+  $form = $variables['form'];
   // Define table headers
   $headers = array(
     t('Key'),
@@ -431,23 +448,26 @@ function theme_values_value_fields($form) {
     $row[] = drupal_render($form[$key]['label']);
     $form[$key]['weight']['#attributes']['class'] = 'values-weight-group';
     $row[] = drupal_render($form[$key]['weight']);
-    $rows[] = array('data' => $row, 'class' => 'draggable');
+    $rows[] = array(
+      'data' => $row,
+      'class' => 'draggable',
+    );
   }
   drupal_add_css(drupal_get_path('module', 'values') . '/values.css');
   drupal_add_tabledrag('values-value-list', 'order', 'sibling', 'values-weight-group');
-  return theme('table', $headers, $rows, array('id' => 'values-value-list')) . drupal_render($form);
+  return theme('table', array('header' => $headers, 'rows' => $rows, 'attributes' => array('id' => 'values-value-list'))) . drupal_render_children($form);
 }
 
 /**
  * Export a value list and display it in a form.
  */
-function values_export_values(&$form_state, $values) {
+function values_export_values($form, &$form_state, $values) {
   if (!module_exists('ctools')) {
     return array('message' => array(
-      '#value' => t('For exporting capabilities, please install the !ctools module.', array('!ctools' => l('Chaos tools suite', 'http://drupal.org/project/ctools'))),
-    ));
+        '#value' => t('For exporting capabilities, please install the !ctools module.', array('!ctools' => l('Chaos tools suite', 'http://drupal.org/project/ctools'))),
+      ));
   }
-  drupal_set_title(check_plain($values->description));
+  drupal_set_title($values->description);
   $code = values_export($values);
   $lines = substr_count($code, "\n");
   $form['export'] = array(
@@ -472,7 +492,7 @@ function values_export($values, $indent = '') {
 /**
  * Import a value list
  */
-function values_import_form(&$form_state) {
+function values_import_form($form, &$form_state) {
   drupal_set_message(t('Importing a value list with a conflicting name will override it.'), 'warning');
   $form['import'] = array(
     '#type' => 'textarea',
@@ -495,11 +515,11 @@ function values_import_form_submit(&$form, &$form_state) {
   $code = $form_state['values']['import'] . "\nreturn \$values;";
   $values = eval($code);
   values_save($values);
-  $form_state['redirect'] = 'admin/content/values/' . $values->name;
+  $form_state['redirect'] = 'admin/structure/values/' . $values->name;
 }
 
 /**
- * Implementation of hook_ctools_plugin_api().
+ * Implements hook_ctools_plugin_api().
  *
  * Tell CTools that we support the default_values_list API.
  */

@@ -1,4 +1,8 @@
 
+Values 7.x-1.x
+--------------
+Port to Drupal 7.x
+
 Values 6.x-1.2
 --------------
 Added an update hook to clear the menu caches.

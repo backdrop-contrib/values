@@ -2,13 +2,13 @@
 
 /**
  * @file
- * Use reusable value sets as allowed values for CCK fields.
+ * Use reusable value sets as allowed values for fields.
  */
 
 /**
- * Implementation of hook_field_settings_alter().
+ * Implements hook_field_settings_alter().
  */
-function values_cck_field_settings_alter(&$form, $op, $field) {
+function values_field_field_settings_alter(&$form, $op, $field) {
   switch ($op) {
     case 'form':
       $options = array('' => t('- None -'));
@@ -32,28 +32,28 @@ function values_cck_field_settings_alter(&$form, $op, $field) {
           $options[$values->name] = $values->description;
         }
       }
-      $form['allowed_values_fieldset']['values_cck'] = array(
+      $form['allowed_values_fieldset']['values_field'] = array(
         '#type' => 'select',
         '#title' => t('Value sets'),
         '#description' => t('Select a reusable value set to use as allowed values for this field. Configure value sets !here. If this field is filled out, the values returned by this set will override the allowed values list below.', array('!here' => l('here', 'admin/content/values'))),
         '#options' => $options,
-        '#default_value' => !empty($field['values_cck']) ? $field['values_cck'] : '',
+        '#default_value' => !empty($field['values_field']) ? $field['values_field'] : '',
         '#weight' => -10,
       );
       break;
     case 'save':
-      $form = array_merge($form, array('values_cck'));
+      $form = array_merge($form, array('values_field'));
       break;
   }
 }
 
 /**
- * Implementation of hook_content_allowed_values_alter().
+ * Implements hook_content_allowed_values_alter().
  */
-function values_cck_content_allowed_values_alter(&$allowed_values, $field) {
-  if (!empty($field['values_cck'])) {
+function values_field_content_allowed_values_alter(&$allowed_values, $field) {
+  if (!empty($field['values_field'])) {
     $allowed_values = array();
-    if ($values = values_load($field['values_cck'])) {
+    if ($values = values_load($field['values_field'])) {
       foreach ($values->data as $value) {
         $allowed_values[$value['value']] = $value['label'];
       }

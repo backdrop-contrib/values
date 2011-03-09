@@ -1,6 +1,10 @@
-name = Values CCK
-description = Use reusable value sets as allowed values for CCK fields.
+name = Values Fields
+description = Use reusable value sets as allowed values for fields.
 package = Form Elements
 dependencies[] = values
-dependencies[] = content
-core = 6.x
+dependencies[] = field
+core = 7.x
+
+files[] = values.install
+files[] = values.module
+files[] = values_field.module

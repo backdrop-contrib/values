@@ -6,25 +6,11 @@
  */
 
 /**
- * Implementation of hook_install().
- */
-function values_install() {
-  drupal_install_schema('values');
-}
-
-/**
- * Implementation of hook_uninnstall().
- */
-function values_uninstall() {
-  drupal_uninstall_schema('values');
-}
-
-/**
- * Implementation of hook_schema().
+ * Implements hook_schema().
  */
 function values_schema() {
   $schema['values_list'] = array(
-    'description' => t('List of configured value lists.'),
+    'description' => 'List of configured value lists.',
     'export' => array(
       'key' => 'name',
       'identifier' => 'values',
@@ -38,17 +24,17 @@ function values_schema() {
     ),
     'fields' => array(
       'name' => array(
-        'description' => t('Unique ID for value lists.'),
+        'description' => 'Unique ID for value lists.',
         'type' => 'varchar',
         'length' => 255,
       ),
       'description' => array(
-        'description' => t('A human-readable name of a value list'),
+        'description' => 'A human-readable name of a value list',
         'type' => 'varchar',
         'length' => 255,
       ),
       'data' => array(
-        'description' => t('Configured list of values.'),
+        'description' => 'Configured list of values.',
         'type' => 'text',
         'size' => 'big',
         'serialize' => TRUE,
@@ -63,26 +49,24 @@ function values_schema() {
 }
 
 /**
- * Implementation of hook_update_N().
+ * Implements hook_update_N().
  * Make 'value' field longer (255).
  */
 function values_update_6100(&$sandbox) {
-  $ret = array();
   $spec = array(
     'type' => 'varchar',
     'length' => 255,
     'not null' => TRUE,
   );
-  db_change_field($ret, 'values_values', 'value', 'value', $spec);
-  return $ret;
+  db_change_field('values_values', 'value', 'value', $spec);
+  return;
 }
 
 /**
- * Implementation of hook_update_N().
+ * Implements hook_update_N().
  * Condense schema into a single table to handle exportables easily.
  */
 function values_update_6101(&$sandbox) {
-  $ret = array();
   // Define the new table
   $schema['values_list'] = array(
     'description' => t('List of configured value lists.'),
@@ -120,7 +104,7 @@ function values_update_6101(&$sandbox) {
     ),
     'primary key' => array('name'),
   );
-  db_create_table($ret, 'values_list', $schema['values_list']);
+  db_create_table('values_list', $schema['values_list']);
   // Migrate existing data to the new schema
   $values_sets = db_query('SELECT * FROM {values_sets}');
   while ($set = db_fetch_object($values_sets)) {
@@ -128,7 +112,7 @@ function values_update_6101(&$sandbox) {
     $values->name = $set->id;
     $values->description = $set->description;
     $values->data = array();
-    $values_values = db_query("SELECT * FROM {values_values} WHERE id = '%s' ORDER BY weight ASC", $set->id);
+    $values_values = db_query("SELECT * FROM {values_values} WHERE id = :id ORDER BY weight ASC", array(':id' => $set->id));
     while ($value = db_fetch_array($values_values)) {
       unset($value['id']);
       $values->data[] = $value;
@@ -136,17 +120,16 @@ function values_update_6101(&$sandbox) {
     drupal_write_record('values_list', $values);
   }
   // Remove old tables
-  db_drop_table($ret, 'values_sets');
-  db_drop_table($ret, 'values_values');
-  return $ret;
+  db_drop_table('values_sets');
+  db_drop_table('values_values');
+  return t('Value sets migrated successfully.');
 }
 
 /**
- * Implementation of hook_update_N().
+ * Implements hook_update_N().
  * Clear menu caches to enable new menu items.
  */
 function values_update_6102(&$sandbox) {
   menu_cache_clear_all();
-  drupal_set_message(t('Menu cache cleared.'));
-  return array();
+  return t('Menu cache cleared.');
 }
