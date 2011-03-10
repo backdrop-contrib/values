@@ -24,6 +24,7 @@ function values_menu() {
   $items = array();
   $items['admin/structure/values'] = array(
     'title' => 'Values',
+    'description' => 'Allows the creation and configuration of reusable value sets.',
     'page callback' => 'values_list',
     'access arguments' => array('administer values'),
   );
@@ -102,8 +103,9 @@ function values_list() {
   );
   $rows = array();
   // Get all the configured value sets and create a nice table
-  $query = db_query('SELECT * FROM {values_list}');
-  while ($values = db_fetch_object($query)) {
+  $result = db_query('SELECT * FROM {values_list}');
+  //while ($values = db_fetch_object($query)) {
+  foreach ($result as $values) {
     $rows[] = array(
       $values->name,
       $values->description,
@@ -111,7 +113,8 @@ function values_list() {
       l(t('delete'), 'admin/structure/values/' . $values->name . '/delete'),
     );
   }
-  return theme_table($header, $rows);
+  // @todo Return renderable array.
+  return theme_table(array('header' => $header, 'rows' => $rows));
 }
 
 /**
