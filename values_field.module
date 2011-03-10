@@ -8,43 +8,37 @@
 /**
  * Implements hook_field_settings_alter().
  */
-function values_field_field_settings_alter(&$form, $op, $field) {
-  switch ($op) {
-    case 'form':
-      $options = array('' => t('- None -'));
-      foreach (values_load_all() as $values) {
-        // Enforce numeric value sets for numeric fields
-        $numeric = TRUE;
-        if ($field['module'] == 'number') {
-          if (is_array($values->data)) {
-            foreach ($values->data as $value) {
-              if (!is_numeric($value['value'])) {
-                $numeric = FALSE;
-              }
-            }
+function values_field_field_settings_form($field, $instance, $has_data) {
+  $options = array('' => t('- None -'));
+  foreach (values_load_all() as $values) {
+    // Enforce numeric value sets for numeric fields
+    $numeric = TRUE;
+    if ($field['module'] == 'number') {
+      if (is_array($values->data)) {
+        foreach ($values->data as $value) {
+          if (!is_numeric($value['value'])) {
+            $numeric = FALSE;
           }
-          if ($numeric) {
-            $options[$values->name] = $values->description;
-          }
-        }
-        else {
-          // All other fields will be assumed string values
-          $options[$values->name] = $values->description;
         }
       }
-      $form['allowed_values_fieldset']['values_field'] = array(
-        '#type' => 'select',
-        '#title' => t('Value sets'),
-        '#description' => t('Select a reusable value set to use as allowed values for this field. Configure value sets !here. If this field is filled out, the values returned by this set will override the allowed values list below.', array('!here' => l('here', 'admin/content/values'))),
-        '#options' => $options,
-        '#default_value' => !empty($field['values_field']) ? $field['values_field'] : '',
-        '#weight' => -10,
-      );
-      break;
-    case 'save':
-      $form = array_merge($form, array('values_field'));
-      break;
+      if ($numeric) {
+        $options[$values->name] = $values->description;
+      }
+    }
+    else {
+      // All other fields will be assumed string values
+      $options[$values->name] = $values->description;
+    }
   }
+  $form['allowed_values_fieldset']['values_field'] = array(
+    '#type' => 'select',
+    '#title' => t('Value sets'),
+    '#description' => t('Select a reusable value set to use as allowed values for this field. Configure value sets !here. If this field is filled out, the values returned by this set will override the allowed values list below.', array('!here' => l('here', 'admin/content/values'))),
+    '#options' => $options,
+    '#default_value' => !empty($field['values_field']) ? $field['values_field'] : '',
+    '#weight' => -10,
+  );
+  return $form;
 }
 
 /**

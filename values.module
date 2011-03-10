@@ -30,18 +30,16 @@ function values_menu() {
   );
   $items['admin/structure/values/list'] = array(
     'title' => 'List',
-    'page callback' => 'values_list',
-    'access arguments' => array('administer values'),
     'weight' => -10,
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
   $items['admin/structure/values/add'] = array(
-    'title' => 'Add',
+    'title' => 'Add values',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'add'),
     'access arguments' => array('administer values'),
     'weight' => -9,
-    'type' => MENU_LOCAL_TASK,
+    'type' => MENU_LOCAL_ACTION,
   );
   $items['admin/structure/values/import'] = array(
     'title' => 'Import',
@@ -60,9 +58,6 @@ function values_menu() {
   );
   $items['admin/structure/values/%values/edit'] = array(
     'title' => 'Edit',
-    'page callback' => 'drupal_get_form',
-    'page arguments' => array('values_form', 'edit', 3),
-    'access arguments' => array('administer values'),
     'weight' => -9,
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
@@ -98,13 +93,11 @@ function values_list() {
   $header = array(
     t('Name'),
     t('Description'),
-    '', // edit
-    '', // delete
+    array('data' => t('Operations'), 'colspan' => 2),
   );
   $rows = array();
   // Get all the configured value sets and create a nice table
   $result = db_query('SELECT * FROM {values_list}');
-  //while ($values = db_fetch_object($query)) {
   foreach ($result as $values) {
     $rows[] = array(
       $values->name,
@@ -113,16 +106,22 @@ function values_list() {
       l(t('delete'), 'admin/structure/values/' . $values->name . '/delete'),
     );
   }
-  // @todo Return renderable array.
-  return theme_table(array('header' => $header, 'rows' => $rows));
+  $table['values_list'] = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#empty' => t('No values available. !link', array('!link' => l(t('Add values'), 'admin/structure/values/add'))),
+  );
+  return $table;
 }
 
 /**
  * Form for adding a new value set.
  */
 function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
-  if ($form_state['values_count']) {
+  if (!empty($form_state['values']['data'])) {
     $values->data = $form_state['values']['data'];
+    usort($values->data, 'values_sort_by_weight');
   }
   else {
     $values = values_load($values, TRUE);
@@ -136,7 +135,7 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
     '#type' => 'textfield',
     '#title' => t('Value set name'),
     '#description' => t('This is the unique ID of the value set. It must contain only alphanumeric characters and underscores; it is used to identify the values internally.'),
-    '#default_value' => $values ? $values->name : '',
+    '#default_value' => isset($values->name) ? $values->name : '',
     '#required' => TRUE,
     '#weight' => -10,
     '#access' => !isset($values->name),
@@ -145,17 +144,10 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
     '#type' => 'textfield',
     '#title' => t('Value set description'),
     '#description' => t('This description will appear on the administrative table to tell you what the values are about.'),
-    '#default_value' => $values ? $values->description : '',
+    '#default_value' => isset($values->description) ? $values->description : '',
     '#required' => TRUE,
     '#weight' => -9,
   );
-  // Count values
-  if (isset($form_state['values_count'])) {
-    $values_count = $form_state['values_count'];
-  }
-  else {
-    $values_count = max(2, empty($values->data) ? 2 : count($values->data));
-  }
   // Wrapper for values
   $form['values_wrapper'] = array(
     '#tree' => FALSE,
@@ -173,8 +165,13 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
     '#theme' => 'values_value_fields',
     '#cache' => TRUE,
   );
+  // Count values
+  if (empty($form_state['values_count'])) {
+    $form_state['values_count'] = max(2, empty($values->data) ? 2 : count($values->data));
+  }
   // Add the current values to the form.
-  for ($delta = 0; $delta < $values_count; $delta++) {
+  for ($delta = 0; $delta < $form_state['values_count']; $delta++) {
+    $weight = isset($values->data[$delta]['weight']) ? intval($values->data[$delta]['weight']) : $delta;
     $form['values_wrapper']['data'][$delta] = array(
       'value' => array(
         '#type' => 'textfield',
@@ -191,23 +188,23 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
       ),
       'weight' => array(
         '#type' => 'weight',
-        '#delta' => $values_count,
-        '#default_value' => isset($values->data[$delta]['weight']) ? intval($values->data[$delta]['weight']) : 0,
+        '#delta' => $form_state['values_count'],
+        '#default_value' => $weight,
       ),
     );
   }
-  // AHAH-enabled "Add more" button
+  // AJAX-enabled "Add more" button
   $form['values_wrapper']['values_add_more'] = array(
     '#type' => 'submit',
     '#value' => t('Add more'),
     '#description' => t("If the amount of options above isn't enough, click here to add more."),
     '#weight' => 1,
     '#submit' => array('values_add_more_submit'), // If no javascript action.
-    '#ahah' => array(
-      'path' => 'values/js',
+    '#ajax' => array(
+      'callback' => 'values_form_js',
       'wrapper' => 'values-values',
       'method' => 'replace',
-      'effect' => 'fade',
+      'effec' => 'fade',
     ),
   );
   $form['submit'] = array(
@@ -224,45 +221,17 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
  * entire form is rebuilt during the page reload.
  */
 function values_add_more_submit($form, &$form_state) {
-  // Make the changes we want to the form state.
-  if ($form_state['values']['values_add_more']) {
-    $n = $_GET['q'] == 'values/js' ? 1 : 5;
-    $form_state['values_count'] = count($form_state['values']['data']) + $n;
-  }
+  $form_state['values_count']++;
+  $form_state['rebuild'] = TRUE;
 }
 
 /**
- * Menu callback for AHAH additions.
+ * Menu callback for AJAX additions.
  */
-function values_form_js() {
-  $form_state = array(
-    'storage' => NULL,
-    'submitted' => FALSE,
-  );
-  $form_build_id = $_POST['form_build_id'];
-  // Get the form from the cache.
-  $form = form_get_cache($form_build_id, $form_state);
-  $args = $form['#parameters'];
-  $form_id = array_shift($args);
-  // We will run some of the submit handlers so we need to disable redirecting.
-  $form_state['#redirect'] = FALSE;
-  // We need to process the form, prepare for that by setting a few internals
-  // variables.
-  $form['#post'] = $_POST;
-  $form['#programmed'] = FALSE;
-  $form_state['post'] = $_POST;
-  // Build, validate and if possible, submit the form.
-  drupal_process_form($form_id, $form, $form_state);
-  // This call recreates the form relying solely on the form_state that the
-  // drupal_process_form set up.
-  $form = drupal_rebuild_form($form_id, $form_state, $args, $form_build_id);
-  // Render the new output.
-  $values_form = $form['values_wrapper']['data'];
-  // Prevent duplicate wrappers.
-  unset($values_form['#prefix'], $values_form['#suffix']);
-  // TODO Please change this theme call to use an associative array for the $variables parameter.
-  $output = theme('status_messages') . drupal_render($values_form);
-  drupal_json_output(array('status' => TRUE, 'data' => $output));
+function values_form_js($form, $form_state) {
+  //unset($form['values_wrapper']['data']['#prefix'], $form['values_wrapper']['data']['#suffix']);
+  unset($form['values_wrapper']['data']['#suffix']);
+  return $form['values_wrapper']['data'];
 }
 
 /**
@@ -305,34 +274,32 @@ function values_form_submit(&$form, &$form_state) {
 /**
  * Loads values object from the database.
  */
-function values_load($names, $reset = FALSE) {
-  foreach ($names as $nid => &$name) {
-    if (is_object($name)) {
-      $name = $name->name;
-    }
-    if (module_exists('ctools')) {
-      // Try using Chaos tools suite for exporting and caching
-      ctools_include('export');
-      $values = ctools_export_load_object('values_list', 'names', array($name));
-    }
-    else {
-      // In the absence of ctools, use our own basic static caching
-      static $values = array();
-      if ($reset || !isset($values[$name])) {
-        $values[$name] = db_fetch_object(db_query("SELECT * FROM {values_list} WHERE name = :name", array(':name' => $name)));
-        if (isset($values[$name]->data)) {
-          $values[$name]->data = unserialize($values[$name]->data);
-        }
+function values_load($name, $reset = FALSE) {
+  if (is_object($name)) {
+    $name = $name->name;
+  }
+  if (module_exists('ctools')) {
+    // Try using Chaos tools suite for exporting and caching
+    ctools_include('export');
+    $values = ctools_export_load_object('values_list', 'names', array($name));
+  }
+  else {
+    // In the absence of ctools, use our own basic static caching
+    static $values = array();
+    if ($reset || !isset($values[$name])) {
+      $values[$name] = db_query("SELECT * FROM {values_list} WHERE name = :name", array(':name' => $name))->fetchObject();
+      if (isset($values[$name]->data)) {
+        $values[$name]->data = unserialize($values[$name]->data);
       }
     }
-    if ($name && isset($values[$name])) {
-      usort($values[$name]->data, 'values_sort_by_weight');
-      return $values[$name];
-    }
-    $node_additions = FALSE;
-    foreach ($node_additions as $property => &$value) {
-      $name->$property = $value;
-    }
+  }
+  if ($name && isset($values[$name])) {
+    usort($values[$name]->data, 'values_sort_by_weight');
+    return $values[$name];
+  }
+  $node_additions = FALSE;
+  foreach ($node_additions as $property => &$value) {
+    $name->$property = $value;
   }
 }
 
@@ -370,6 +337,11 @@ function values_save($values) {
   $set = new stdClass;
   $set->name = $values->name;
   $set->description = $values->description;
+  foreach ($values->data as $key => $data) {
+    if (!strlen($data['value'])) {
+      unset($values->data[$key]);
+    }
+  }
   usort($values->data, 'values_sort_by_weight');
   $set->data = $values->data;
   // Write to the database
@@ -420,7 +392,7 @@ function values_delete($name) {
 /**
  * Implements hook_theme().
  */
-function values_theme() {
+function values_theme($existing, $type, $theme, $path) {
   return array(
     'values_value_fields' => array(
       'render element' => 'form',
@@ -449,11 +421,11 @@ function theme_values_value_fields($variables) {
     $row = array();
     $row[] = drupal_render($form[$key]['value']);
     $row[] = drupal_render($form[$key]['label']);
-    $form[$key]['weight']['#attributes']['class'] = 'values-weight-group';
+    $form[$key]['weight']['#attributes']['class'] = array('values-weight-group');
     $row[] = drupal_render($form[$key]['weight']);
-    $rows[] = array(
+    $rows[$key] = array(
       'data' => $row,
-      'class' => 'draggable',
+      'class' => array('draggable'),
     );
   }
   drupal_add_css(drupal_get_path('module', 'values') . '/values.css');
