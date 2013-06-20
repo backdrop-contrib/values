@@ -1,4 +1,15 @@
 
+Values 7.x-1.x-dev (2013-06-20)
+-------------------------------
+
+Finished drupal 7 port:
+Fixed any db queries (there was one still using the old D6 method of iterating over the results of db_query()
+Changed the Name and Description field to a machine_name field.
+Changed the values field to a machine name field as well.
+Re wrote the values_field module since it was using old hooks that don't work anymore. (basically mimicked what the D7 cck module does for allowed values php code/ allowed values functions)
+Added a little extra documentation to some of the docblocks
+Re-organized the code a little bit into sections
+
 Values 7.x-1.x-dev
 ------------------
 Port to Drupal 7.x

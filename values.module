@@ -5,6 +5,13 @@
  * API for managing reusable value sets.
  */
 
+/***********************************************************************
+ *
+ * DRUPAL HOOKS
+ *
+ ***********************************************************************/
+
+
 /**
  * Implements hook_permission().
  */
@@ -25,7 +32,7 @@ function values_menu() {
   $items['admin/structure/values'] = array(
     'title' => 'Values',
     'description' => 'Allows the creation and configuration of reusable value sets.',
-    'page callback' => 'values_list',
+    'page callback' => 'values_list_page',
     'access arguments' => array('administer values'),
   );
   $items['admin/structure/values/list'] = array(
@@ -87,33 +94,33 @@ function values_menu() {
 }
 
 /**
- * Displays a list of existing value sets.
+ * Implements hook_theme().
  */
-function values_list() {
-  $header = array(
-    t('Name'),
-    t('Description'),
-    array('data' => t('Operations'), 'colspan' => 2),
+function values_theme($existing, $type, $theme, $path) {
+  return array(
+    'values_value_fields' => array(
+      'render element' => 'form',
+    ),
   );
-  $rows = array();
-  // Get all the configured value sets and create a nice table
-  $result = db_query('SELECT * FROM {values_list}');
-  foreach ($result as $values) {
-    $rows[] = array(
-      $values->name,
-      $values->description,
-      l(t('edit'), 'admin/structure/values/' . $values->name . '/edit'),
-      l(t('delete'), 'admin/structure/values/' . $values->name . '/delete'),
-    );
-  }
-  $table['values_list'] = array(
-    '#theme' => 'table',
-    '#header' => $header,
-    '#rows' => $rows,
-    '#empty' => t('No values available. !link', array('!link' => l(t('Add values'), 'admin/structure/values/add'))),
-  );
-  return $table;
 }
+
+/**
+ * Implements hook_ctools_plugin_api().
+ *
+ * Tell CTools that we support the default_values_list API.
+ */
+function values_ctools_plugin_api($owner, $api) {
+  if ($owner == 'values' && $api == 'default_values_list') {
+    return array('version' => 1);
+  }
+}
+
+/***********************************************************************
+ *
+ * VALUES FORM
+ *
+ ***********************************************************************/
+
 
 /**
  * Form for adding a new value set.
@@ -131,22 +138,26 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
     '#type' => 'value',
     '#value' => $action,
   );
-  $form['name'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Value set name'),
-    '#description' => t('This is the unique ID of the value set. It must contain only alphanumeric characters and underscores; it is used to identify the values internally.'),
-    '#default_value' => isset($values->name) ? $values->name : '',
-    '#required' => TRUE,
-    '#weight' => -10,
-    '#access' => !isset($values->name),
-  );
   $form['description'] = array(
     '#type' => 'textfield',
-    '#title' => t('Value set description'),
-    '#description' => t('This description will appear on the administrative table to tell you what the values are about.'),
+    '#title' => t('Value set name'),
+    '#description' => t('This human readable name of this value set.'),
     '#default_value' => isset($values->description) ? $values->description : '',
     '#required' => TRUE,
+    '#weight' => -10,
+  );
+  $form['name'] = array(
+    '#type' => 'machine_name',
+    // '#title' => t('Value set name'),
+    // '#description' => t('This is the unique ID of the value set. It must contain only alphanumeric characters and underscores; it is used to identify the values internally.'),
+    '#default_value' => isset($values->name) ? $values->name : '',
+    '#required' => TRUE,
     '#weight' => -9,
+    '#access' => !isset($values->name),
+    '#machine_name' => array(
+      'source' => array('description'),
+      'exists' => '_values_name_exists',
+    ),
   );
   // Wrapper for values
   $form['values_wrapper'] = array(
@@ -173,18 +184,35 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
   for ($delta = 0; $delta < $form_state['values_count']; $delta++) {
     $weight = isset($values->data[$delta]['weight']) ? intval($values->data[$delta]['weight']) : $delta;
     $form['values_wrapper']['data'][$delta] = array(
-      'value' => array(
-        '#type' => 'textfield',
-        '#title' => t('Value @n', array('@n' => ($delta + 1))),
-        '#default_value' => isset($values->data[$delta]['value']) ? $values->data[$delta]['value'] : '',
-        '#size' => 4,
-        '#maxlength' => 32,
-      ),
+      // Old way
+      // 'value' => array(
+      //   '#type' => 'textfield',
+      //   '#title' => t('Value @n', array('@n' => ($delta + 1))),
+      //   '#default_value' => isset($values->data[$delta]['value']) ? $values->data[$delta]['value'] : '',
+      //   '#access' => user_access('administer values'),
+      // ),
       'label' => array(
         '#type' => 'textfield',
         '#title' => t('Label for value @n', array('@n' => ($delta + 1))),
         '#default_value' => isset($values->data[$delta]['label']) ? $values->data[$delta]['label'] : '',
         '#access' => user_access('administer values'),
+      ),
+      'value' => array(
+        '#type' => 'machine_name',
+        '#title' => t('Value @n', array('@n' => ($delta + 1))),
+        '#default_value' => isset($values->data[$delta]['value']) ? $values->data[$delta]['value'] : '',
+        '#description' => t('A key for this value. Can only contain lowercase letters, numbers, and underscores.'),
+        '#after_build' => array('values_form_value_after_build'),
+        '#machine_name' => array(
+          'source' => array('values_wrapper', 'data', $delta, 'label'),
+          'exists' => '_values_value_key_exists', // This is a dummy function
+          'label' => 'Key',
+        ),
+      ),
+      'remove' => array(
+        '#type' => 'checkbox',
+        '#title' => t(''),
+        '#default_value' => isset($values->data[$delta]['remove']) ? $values->data[$delta]['remove'] : 0,
       ),
       'weight' => array(
         '#type' => 'weight',
@@ -216,6 +244,65 @@ function values_form($form, &$form_state, $action = 'edit', $values = NULL) {
 }
 
 /**
+ * Alter the 'value' elements after the form is built
+ */
+function values_form_value_after_build($element, &$form_state) {
+  // We don't want the element to be required because if the "Add more" button
+  // is clicked and an empty row is submitted, we'll get an error.
+  $element['#required'] = FALSE;
+  // Add our own custom validation handler to do our own "required" validation
+  array_unshift($element['#element_validate'], 'values_form_value_validate');
+  return $element;
+}
+
+/**
+ * Validates the values form value element (type: machine_name)
+ */
+function values_form_value_validate(&$element, &$form_state) {
+  $delta = preg_replace('/[^0-9]/', '', $element['#name']);
+  $value = $form_state['values']['data'][$delta];
+  // If the label has a value but no key is provided AND we're not removing
+  // the row we set an error
+  if ($value['label'] && !$value['value'] && !$value['remove']) {
+    // This is borrowed from _form_validate() in form.inc line 1393
+    if (isset($element['#title'])) {
+      form_error($element, $t('!name field is required.', array('!name' => $element['#title'])));
+    }
+    else {
+      form_error($element);
+    }
+  }
+}
+
+/**
+ * Validates the values form
+ */
+function values_form_validate(&$element, &$form_state) {
+  // not in use...
+}
+
+/**
+ * Submits the values form.
+ */
+function values_form_submit(&$form, &$form_state) {
+  $values = new stdClass;
+  $values->name = $form_state['values']['name'];
+  $values->description = $form_state['values']['description'];
+  $values->data = array();
+  foreach ($form_state['values']['data'] as $value) {
+    if (!$value['remove']) {
+      $values->data[] = array(
+        'value' => $value['value'],
+        'label' => $value['label'],
+        'weight' => $value['weight'],
+      );
+    }
+  }
+  values_save($values);
+  $form_state['redirect'] = 'admin/structure/values';
+}
+
+/**
  * Submit handler to add more values to a value set. This handler is used when
  * javascript is not available. It makes changes to the form state and the
  * entire form is rebuilt during the page reload.
@@ -234,121 +321,11 @@ function values_form_js($form, $form_state) {
   return $form['values_wrapper']['data'];
 }
 
-/**
- * Validates the values form.
- */
-function values_form_validate(&$form, &$form_state) {
-  $name = $form_state['values']['name'];
-  // Values name must be alphanumeric or underscores, no other punctuation
-  if (preg_match('/[^a-zA-Z0-9_]/', $name)) {
-    form_set_error('name', t('Value set name must be alphanumeric or underscores only.'));
-  }
-  // Values name must be unique
-  if ($form_state['values']['action'] == 'add') {
-    $values = values_load($name);
-    if ($values) {
-      form_set_error('name', t('You must use a unique name for this value set.'));
-    }
-  }
-}
-
-/**
- * Submits the values form.
- */
-function values_form_submit(&$form, &$form_state) {
-  $values = new stdClass;
-  $values->name = $form_state['values']['name'];
-  $values->description = $form_state['values']['description'];
-  $values->data = array();
-  foreach ($form_state['values']['data'] as $value) {
-    $values->data[] = array(
-      'value' => $value['value'],
-      'label' => $value['label'],
-      'weight' => $value['weight'],
-    );
-  }
-  values_save($values);
-  $form_state['redirect'] = 'admin/structure/values';
-}
-
-/**
- * Loads values object from the database.
- */
-function values_load($name, $reset = FALSE) {
-  if (is_object($name)) {
-    $name = $name->name;
-  }
-  if (module_exists('ctools')) {
-    // Try using Chaos tools suite for exporting and caching
-    ctools_include('export');
-    $values = ctools_export_load_object('values_list', 'names', array($name));
-  }
-  else {
-    // In the absence of ctools, use our own basic static caching
-    static $values = array();
-    if ($reset || !isset($values[$name])) {
-      $values[$name] = db_query("SELECT * FROM {values_list} WHERE name = :name", array(':name' => $name))->fetchObject();
-      if (isset($values[$name]->data)) {
-        $values[$name]->data = unserialize($values[$name]->data);
-      }
-    }
-  }
-  if ($name && isset($values[$name])) {
-    usort($values[$name]->data, 'values_sort_by_weight');
-    return $values[$name];
-  }
-  $node_additions = FALSE;
-  foreach ($node_additions as $property => &$value) {
-    $name->$property = $value;
-  }
-}
-
-/**
- * Sort list of values by weight.
- */
-function values_sort_by_weight($a, $b) {
-  $a_weight = (is_array($a) && isset($a['weight'])) ? $a['weight'] : 0;
-  $b_weight = (is_array($b) && isset($b['weight'])) ? $b['weight'] : 0;
-  if ($a_weight == $b_weight) {
-    return 0;
-  }
-  return ($a_weight < $b_weight) ? -1 : 1;
-}
-
-/**
- * Loads all value sets.
- */
-function values_load_all() {
-  $values_sets = array();
-  $query = db_query('SELECT name FROM {values_list} ORDER BY description ASC');
-  while ($values = db_fetch_object($query)) {
-    $values_sets[] = values_load($values->name);
-  }
-  return $values_sets;
-}
-
-/**
- * Saves a values object to the database.
- */
-function values_save($values) {
-  // Delete existing values
-  values_delete($values->name);
-  // Create a new value set object
-  $set = new stdClass;
-  $set->name = $values->name;
-  $set->description = $values->description;
-  foreach ($values->data as $key => $data) {
-    if (!strlen($data['value'])) {
-      unset($values->data[$key]);
-    }
-  }
-  usort($values->data, 'values_sort_by_weight');
-  $set->data = $values->data;
-  // Write to the database
-  if ($success = drupal_write_record('values_list', $set)) {
-    drupal_set_message(t('Value set !name was saved.', array('!name' => $values->name)));
-  }
-}
+/***********************************************************************
+ *
+ * DELETE VALUE SET FORM FUNCTIONS
+ *
+ ***********************************************************************/
 
 /**
  * Confirmation form to delete a value object from the database.
@@ -375,63 +352,11 @@ function values_delete_confirm_submit(&$form, &$form_state) {
   drupal_set_message(t('Value list !name was deleted.', array('!name' => $form_state['values']['name'])));
 }
 
-/**
- * Deletes a value object from the database.
- */
-function values_delete($name) {
-  if (is_object($name)) {
-    $name = $name->name;
-  }
-  // TODO Please review the conversion of this statement to the D7 database API syntax.
-  /* db_query("DELETE FROM {values_list} WHERE name = '%s'", $name) */
-  db_delete('values_list')
-  ->condition('name', $name)
-  ->execute();
-}
-
-/**
- * Implements hook_theme().
- */
-function values_theme($existing, $type, $theme, $path) {
-  return array(
-    'values_value_fields' => array(
-      'render element' => 'form',
-    ),
-  );
-}
-
-/**
- * Theme the admin values form.
+/***********************************************************************
  *
- * @ingroup themeable
- */
-function theme_values_value_fields($variables) {
-  $form = $variables['form'];
-  // Define table headers
-  $headers = array(
-    t('Key'),
-    t('Label'),
-    t('Weight'),
-  );
-  // Build table rows
-  $rows = array();
-  foreach (element_children($form) as $key) {
-    // No need to print the field title every time
-    unset($form[$key]['value']['#title'], $form[$key]['label']['#title']);
-    $row = array();
-    $row[] = drupal_render($form[$key]['value']);
-    $row[] = drupal_render($form[$key]['label']);
-    $form[$key]['weight']['#attributes']['class'] = array('values-weight-group');
-    $row[] = drupal_render($form[$key]['weight']);
-    $rows[$key] = array(
-      'data' => $row,
-      'class' => array('draggable'),
-    );
-  }
-  drupal_add_css(drupal_get_path('module', 'values') . '/values.css');
-  drupal_add_tabledrag('values-value-list', 'order', 'sibling', 'values-weight-group');
-  return theme('table', array('header' => $headers, 'rows' => $rows, 'attributes' => array('id' => 'values-value-list'))) . drupal_render_children($form);
-}
+ * EXPORT CODE
+ *
+ ***********************************************************************/
 
 /**
  * Export a value list and display it in a form.
@@ -493,13 +418,284 @@ function values_import_form_submit(&$form, &$form_state) {
   $form_state['redirect'] = 'admin/structure/values/' . $values->name;
 }
 
-/**
- * Implements hook_ctools_plugin_api().
+/***********************************************************************
  *
- * Tell CTools that we support the default_values_list API.
+ * THEME FUNCTIONS
+ *
+ ***********************************************************************/
+
+/**
+ * Theme the admin values form.
+ *
+ * @ingroup themeable
  */
-function values_ctools_plugin_api($owner, $api) {
-  if ($owner == 'values' && $api == 'default_values_list') {
-    return array('version' => 1);
+function theme_values_value_fields($variables) {
+  $form = $variables['form'];
+  $headers = array(
+    array(
+      'data' => t('Value'),
+      'class' => 'value',
+    ),
+    array(
+      'data' => t('Remove?'),
+      'class' => 'remove',
+    ),
+    array(
+      'data' => t('Weight'),
+      'class' => 'weight',
+    ),
+  );
+  // Build table rows
+  $rows = array();
+  foreach (element_children($form) as $key) {
+    // No need to print the field title every time
+    unset($form[$key]['value']['#title'], $form[$key]['label']['#title']);
+    $row = array();
+    $row[] = array(
+      'data' => drupal_render($form[$key]['label']) . drupal_render($form[$key]['value']),
+      'class' => 'value',
+    );
+    $row[] = array(
+      'data' => drupal_render($form[$key]['remove']),
+      'class' => 'remove',
+    );
+    $form[$key]['weight']['#attributes']['class'] = array('values-weight-group');
+    $row[] = drupal_render($form[$key]['weight']);
+    $rows[$key] = array(
+      'data' => $row,
+      'class' => array('draggable'),
+    );
+  }
+  drupal_add_css(drupal_get_path('module', 'values') . '/values.css');
+  drupal_add_tabledrag('values-value-list', 'order', 'sibling', 'values-weight-group');
+  return theme('table', array('header' => $headers, 'rows' => $rows, 'attributes' => array('id' => 'values-value-list'))) . drupal_render_children($form);
+}
+
+/***********************************************************************
+ *
+ * PAGE CALLBACKS
+ *
+ ***********************************************************************/
+
+/**
+ * Displays a list of existing value sets.
+ */
+function values_list_page() {
+  $header = array(
+    t('Name'),
+    t('Description'),
+    array('data' => t('Operations'), 'colspan' => 2),
+  );
+  $rows = array();
+  // Get all the configured value sets and create a nice table
+  $result = db_query('SELECT * FROM {values_list}');
+  foreach ($result as $values) {
+    $rows[] = array(
+      $values->name,
+      $values->description,
+      l(t('edit'), 'admin/structure/values/' . $values->name . '/edit'),
+      l(t('delete'), 'admin/structure/values/' . $values->name . '/delete'),
+    );
+  }
+  $table['values_list'] = array(
+    '#theme' => 'table',
+    '#header' => $header,
+    '#rows' => $rows,
+    '#empty' => t('No values available. !link', array('!link' => l(t('Add values'), 'admin/structure/values/add'))),
+  );
+  return $table;
+}
+
+/***********************************************************************
+ *
+ * API FUNCTIONS
+ *
+ ***********************************************************************/
+
+/**
+ * Loads values object from the database.
+ *
+ * @param $name
+ *    The name of the value set to load
+ *
+ * @param $reset
+ *    Optional argument to force loading fresh from the db instead of from the
+ *    cache. Defaults to FALSE
+ *
+ * @return
+ *    A value set object
+ */
+function values_load($name, $reset = FALSE) {
+  if (is_object($name)) {
+    $name = $name->name;
+  }
+  if (module_exists('ctools')) {
+    // Try using Chaos tools suite for exporting and caching
+    ctools_include('export');
+    $values = ctools_export_load_object('values_list', 'names', array($name));
+  }
+  else {
+    // In the absence of ctools, use our own basic static caching
+    static $values = array();
+    if ($reset || !isset($values[$name])) {
+      $values[$name] = db_query("SELECT * FROM {values_list} WHERE name = :name", array(':name' => $name))->fetchObject();
+      if (isset($values[$name]->data)) {
+        $values[$name]->data = unserialize($values[$name]->data);
+      }
+    }
+  }
+  if ($name && isset($values[$name])) {
+    usort($values[$name]->data, 'values_sort_by_weight');
+    return $values[$name];
+  }
+  // @todo: What is this for? It was in the original d7 upgrade...
+  // $node_additions = FALSE;
+  // foreach ($node_additions as $property => &$value) {
+  //   $name->$property = $value;
+  // }
+}
+
+/**
+ * Loads all value sets.
+ *
+ * @return
+ *    An array of all value sets
+ */
+function values_load_all() {
+  $values_sets = array();
+  $query = db_query('SELECT name FROM {values_list} ORDER BY description ASC');
+  foreach ($query as $values) {
+    $values_sets[] = values_load($values->name);
+  }
+  return $values_sets;
+}
+
+/**
+ * Saves a values object to the database.
+ *
+ * @param $value_set
+ *    A value set object with the following properties
+ *      - name: The machine name of the value set
+ *      - description: The human readable name of the value set
+ *      - data: An array of arrays of value data:
+ *        'data' => array(
+ *          array(
+ *            'value' => ... The value key,
+ *            'label' => ... The label for the value,
+ *            'weight' => ... The value weight,
+ *          ),
+ *        ),
+ */
+function values_save($value_set) {
+  // @todo: I don't think we should be overwriting every time... we should update if it needs update and insert if it needs an insert...
+  // Delete existing values
+  values_delete($value_set->name);
+  // Create a new value set object
+  $set = new stdClass;
+  $set->name = $value_set->name;
+  $set->description = $value_set->description;
+  foreach ($value_set->data as $key => $data) {
+    if (!strlen($data['value'])) {
+      unset($value_set->data[$key]);
+    }
+  }
+  usort($value_set->data, 'values_sort_by_weight');
+  $set->data = $value_set->data;
+  // Write to the database
+  if ($success = drupal_write_record('values_list', $set)) {
+    drupal_set_message(t('Value set !name was saved.', array('!name' => $value_set->name)));
+  }
+}
+
+/**
+ * Deletes a value set from the database.
+ *
+ * @param $name
+ *    The Machine name of the value set to delete
+ */
+function values_delete($name) {
+  if (is_object($name)) {
+    $name = $name->name;
+  }
+  // TODO Please review the conversion of this statement to the D7 database API syntax.
+  /* db_query("DELETE FROM {values_list} WHERE name = '%s'", $name) */
+  db_delete('values_list')
+  ->condition('name', $name)
+  ->execute();
+}
+
+/***********************************************************************
+ *
+ * HELPER FUNCTIONS -- PUBLIC
+ *
+ ***********************************************************************/
+
+/**
+ * Sort list of values by weight. Meant for uasort()
+ */
+function values_sort_by_weight($a, $b) {
+  $a_weight = (is_array($a) && isset($a['weight'])) ? $a['weight'] : 0;
+  $b_weight = (is_array($b) && isset($b['weight'])) ? $b['weight'] : 0;
+  if ($a_weight == $b_weight) {
+    return 0;
+  }
+  return ($a_weight < $b_weight) ? -1 : 1;
+}
+
+/***********************************************************************
+ *
+ * HELPER FUNCTIONS -- PRIVATE
+ *
+ ***********************************************************************/
+
+/**
+ * Render API callback: Checks if the value set machine name is taken.
+ *
+ * @param $value
+ *   The machine name.
+ *
+ * @return
+ *   Whether or not the field machine name is taken.
+ */
+function _values_name_exists($value) {
+  $values = values_load($value);
+  if ($values) {
+    return TRUE;
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Render API callback: Keys for values don't have to be unique so we just
+ * return false so that it's always accepted
+ *
+ * @param $value
+ *   The machine name.
+ *
+ * @return
+ *   Whether or not the field machine name is taken.
+ */
+function _values_value_key_exists($value) {
+  return FALSE;
+}
+
+/**
+ * Clears an error against one form element.
+ *
+ * @param $name
+ *   The name of the form element as defined in form_set_error.
+ */
+function _values_form_unset_error($name) {
+  $errors = &drupal_static('form_set_error', array());
+  $removed_messages = array();
+  if (isset($errors[$name])) {
+    $removed_messages[] = $errors[$name];
+    unset($errors[$name]);
+  }
+  $_SESSION['messages']['error'] = array_diff($_SESSION['messages']['error'], $removed_messages);
+  if (!$_SESSION['messages']['error']) {
+    unset($_SESSION['messages']['error']);
   }
 }

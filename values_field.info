@@ -5,6 +5,9 @@ dependencies[] = values
 dependencies[] = field
 core = 7.x
 
-files[] = values.install
-files[] = values.module
-files[] = values_field.module
+; Information added by drupal.org packaging script on 2011-03-10
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "values"
+datestamp = "1299759359"
+
