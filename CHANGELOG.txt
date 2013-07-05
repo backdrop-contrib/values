@@ -2,6 +2,16 @@
 Values 7.x-1.x-dev (2013-06-20)
 -------------------------------
 
+Added the values_webform module
+Moved values_field into 'modules' folder
+Moved values.css to css folder
+Changed value set listing page column headers to "Value Set Name" and "Machine Name".
+Changed some of the language in the code. The term 'values' was being used ambiguously for values as well as value sets.
+The keys values in $value_set->data[$delta] has been changed. 'value' is now 'key' and 'label' is now 'value'.
+
+Values 7.x-1.x-dev (2013-06-20)
+-------------------------------
+
 Finished drupal 7 port:
 Fixed any db queries (there was one still using the old D6 method of iterating over the results of db_query()
 Changed the Name and Description field to a machine_name field.

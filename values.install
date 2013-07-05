@@ -9,27 +9,32 @@
  * Implements hook_schema().
  */
 function values_schema() {
-  $schema['values_list'] = array(
-    'description' => 'List of configured value lists.',
+  $schema['values_sets'] = array(
+    'description' => 'List of configured value sets.',
     'export' => array(
       'key' => 'name',
       'identifier' => 'values',
       'default hook' => 'default_values_values',
       'api' => array(
         'owner' => 'values',
-        'api' => 'default_values_list',
+        'api' => 'default_values_sets',
         'minimum_version' => 1,
         'current_version' => 1,
       ),
     ),
     'fields' => array(
       'name' => array(
-        'description' => 'Unique ID for value lists.',
+        'description' => 'Unique ID for value sets.',
+        'type' => 'varchar',
+        'length' => 255,
+      ),
+      'title' => array(
+        'description' => 'Title of the value set',
         'type' => 'varchar',
         'length' => 255,
       ),
       'description' => array(
-        'description' => 'A human-readable name of a value list',
+        'description' => 'A description of the value set',
         'type' => 'varchar',
         'length' => 255,
       ),
@@ -49,87 +54,47 @@ function values_schema() {
 }
 
 /**
- * Implements hook_update_N().
- * Make 'value' field longer (255).
+ * Reformat values stored in database
  */
-function values_update_6100(&$sandbox) {
-  $spec = array(
-    'type' => 'varchar',
-    'length' => 255,
-    'not null' => TRUE,
-  );
-  db_change_field('values_values', 'value', 'value', $spec);
+function values_update_7101(&$sandbox) {
+  foreach (values_load_all() as $value_set) {
+    foreach ($value_set->data as $delta => $value) {
+      if (!empty($value['label'])) {
+        $value_set->data[$delta] = array(
+          'key' => $value['value'],
+          'value' => $value['label'],
+          'weight' => $value['weight'],
+        );
+      }
+    }
+    $num_updated = db_update('values_sets')
+      ->fields(array(
+        'data' => serialize($value_set->data),
+      ))
+      ->condition('name', $value_set->name, '=')
+      ->execute();
+  }
   return;
 }
 
 /**
- * Implements hook_update_N().
- * Condense schema into a single table to handle exportables easily.
+ * Rename values_list table to values_sets. Add title column. Copy descriptions
+ * to new title column
  */
-function values_update_6101(&$sandbox) {
-  // Define the new table
-  $schema['values_list'] = array(
-    'description' => t('List of configured value lists.'),
-    'export' => array(
-      'key' => 'name',
-      'identifier' => 'values',
-      'default hook' => 'default_values_values',
-      'api' => array(
-        'owner' => 'values',
-        'api' => 'default_values_list',
-        'minimum_version' => 1,
-        'current_version' => 1,
-      ),
-    ),
-    'fields' => array(
-      'name' => array(
-        'description' => t('Unique ID for value lists.'),
-        'type' => 'varchar',
-        'length' => 255,
-      ),
-      'description' => array(
-        'description' => t('A human-readable name of a value list'),
-        'type' => 'varchar',
-        'length' => 255,
-      ),
-      'data' => array(
-        'description' => t('Configured list of values.'),
-        'type' => 'text',
-        'size' => 'big',
-        'serialize' => TRUE,
-      ),
-    ),
-    'unique keys' => array(
-      'name' => array('name'),
-    ),
-    'primary key' => array('name'),
+function values_update_7100(&$sandbox) {
+  db_rename_table('values_list', 'values_sets');
+  $spec = array(
+    'description' => 'Title of the value set',
+    'type' => 'varchar',
+    'length' => 255,
   );
-  db_create_table('values_list', $schema['values_list']);
-  // Migrate existing data to the new schema
-  $values_sets = db_query('SELECT * FROM {values_sets}');
-  while ($set = db_fetch_object($values_sets)) {
-    $values = new stdClass;
-    $values->name = $set->id;
-    $values->description = $set->description;
-    $values->data = array();
-    $values_values = db_query("SELECT * FROM {values_values} WHERE id = :id ORDER BY weight ASC", array(':id' => $set->id));
-    while ($value = db_fetch_array($values_values)) {
-      unset($value['id']);
-      $values->data[] = $value;
-    }
-    drupal_write_record('values_list', $values);
+  db_add_field('values_sets', 'title', $spec);
+  // Move the title column (on mysql only - pgsql doesn't have a way to do this
+  // without creating new columns in a specific order and deleting the old ones)
+  if (Database::getConnection()->driver() == 'mysql') {
+    db_query("ALTER table {values_sets} MODIFY COLUMN title varchar(255) AFTER name");
   }
-  // Remove old tables
-  db_drop_table('values_sets');
-  db_drop_table('values_values');
-  return t('Value sets migrated successfully.');
-}
-
-/**
- * Implements hook_update_N().
- * Clear menu caches to enable new menu items.
- */
-function values_update_6102(&$sandbox) {
-  menu_cache_clear_all();
-  return t('Menu cache cleared.');
+  // Update the new title field with whatever was in description
+  db_query("UPDATE {values_sets} SET title = description");
+  return;
 }

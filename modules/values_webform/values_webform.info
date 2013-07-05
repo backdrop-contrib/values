@@ -1,0 +1,6 @@
+name = Values Webform
+description = Exposes Value Sets as reusable option lists for webform "Select" components
+package = Form Elements
+dependencies[] = values
+dependencies[] = webform
+core = 7.x
