@@ -57,6 +57,9 @@ function values_field_form_alter(&$form, &$form_state, $form_id) {
         '#weight' => -10,
       );
 
+      // Add a state for the allowed values field
+      $form['field']['settings']['allowed_values']['#states']['visible'][':input[name="field[settings][values_field]"]'] = array('value' => '');
+
       // If CCK Is enabled we'll need to add some special states to hide the
       // Allowed values php code and allowed values function fields once
       // a value set is chosen.
