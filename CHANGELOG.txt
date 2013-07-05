@@ -1,5 +1,5 @@
 
-Values 7.x-1.x-dev (2013-06-20)
+Values 7.x-1.x-dev (2013-07-05)
 -------------------------------
 
 Added the values_webform module
