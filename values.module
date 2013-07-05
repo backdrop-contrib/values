@@ -133,7 +133,6 @@ function values_form($form, &$form_state, $action = 'edit', $value_set = NULL) {
   else {
     $value_set = values_load($value_set, TRUE);
   }
-  dpm($value_set);
   $form = array();
   $form['action'] = array(
     '#type' => 'value',
