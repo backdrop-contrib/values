@@ -162,7 +162,7 @@ function values_form($form, &$form_state, $action = 'edit', $value_set = NULL) {
     '#title' => t('Description'),
     '#description' => t('A short description of the value set'),
     '#default_value' => isset($value_set->description) ? $value_set->description : '',
-    '#weight' => -9.5,
+    '#weight' => -8.5,
   );
   // Wrapper for values
   $form['values_wrapper'] = array(
@@ -401,11 +401,69 @@ function values_export($value_set, $indent = '') {
  */
 function values_import_form($form, &$form_state) {
   drupal_set_message(t('Importing a value list with a conflicting name will override it.'), 'warning');
+  $form['import_type'] = array(
+    '#type' => 'radios',
+    '#title' => t('Import Type'),
+    '#options' => array(
+      'ctools' => 'Ctools Export',
+      'values' => 'key|value pairs',
+    ),
+    '#default_value' => 'ctools',
+  );
   $form['import'] = array(
     '#type' => 'textarea',
     '#title' => t('Import data'),
     '#description' => t('Copy the text from an previously exported value list and paste it here.'),
     '#default_value' => isset($form_state['values']['import']) ? $form_state['values']['import'] : '',
+    '#rows' => 10,
+    '#states' => array(
+      'visible' => array(
+        ':input[name="import_type"]' => array('value' => 'ctools'),
+      ),
+    ),
+  );
+  $form['import_csv'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Import CSV'),
+    '#description' => 'Import a new value set as a flat set of key|value pairs. Useful for migrating from allowed values lists to value sets.',
+    '#collapsible' => FALSE,
+    '#states' => array(
+      'visible' => array(
+        ':input[name="import_type"]' => array('value' => 'values'),
+      ),
+    ),
+  );
+  $form['import_csv']['title'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Value set name'),
+    '#description' => t('The human readable name of this value set.'),
+    '#default_value' => '',
+    '#weight' => -10,
+  );
+  $form['import_csv']['name'] = array(
+    '#type' => 'machine_name',
+    '#default_value' => '',
+    '#weight' => -9,
+    '#access' => !isset($value_set->name),
+    '#after_build' => array('values_import_form_after_build'),
+    '#machine_name' => array(
+      'source' => array('import_csv', 'title'),
+      'exists' => '_values_name_exists',
+    ),
+  );
+  $form['import_csv']['description'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Description'),
+    '#description' => t('A short description of the value set'),
+    '#default_value' => isset($value_set->description) ? $value_set->description : '',
+    '#weight' => -8.5,
+  );
+  // Wrapper for values
+  $form['import_csv']['values'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Import data'),
+    '#description' => t('Enter one value per line. If you wish to specify the key, use the format key|value.'),
+    '#default_value' => '',
     '#rows' => 10,
   );
   $form['submit'] = array(
@@ -416,13 +474,76 @@ function values_import_form($form, &$form_state) {
 }
 
 /**
+ * Alter the 'value' elements after the form is built
+ */
+function values_import_form_after_build($element, &$form_state) {
+  // We don't want the element to be required because if the form could be hidden
+  $element['#required'] = FALSE;
+  // // Add our own custom validation handler to do our own "required" validation
+  array_unshift($element['#element_validate'], 'values_import_form_name_validate');
+  return $element;
+}
+
+/**
+ * Validation handler for values list import
+ */
+function values_import_form_name_validate(&$element, &$form_state) {
+  // If the import type is values and there is no name set
+  if ($form_state['values']['import_type'] == 'values' && !$form_state['values']['name']) {
+    // This is borrowed from _form_validate() in form.inc line 1393
+    if (isset($element['#title'])) {
+      form_error($element, t('!name field is required.', array('!name' => $element['#title'])));
+    }
+    else {
+      form_error($element);
+    }
+  }
+}
+/**
+ * Validation handler for values list import
+ */
+function values_import_form_validate(&$form, &$form_state) {
+  if ($form_state['values']['import_type'] == 'values' && !$form_state['values']['title']) {
+    form_set_error('title', 'Value set title is required');
+  }
+}
+
+/**
  * Submit function for value list import.
  */
 function values_import_form_submit(&$form, &$form_state) {
-  $code = $form_state['values']['import'] . "\nreturn \$value_set;";
-  $value_set = eval($code);
-  values_save($value_set);
-  $form_state['redirect'] = 'admin/structure/values/' . $value_set->name;
+  if ($form_state['values']['import_type'] == 'values') {
+    $value_set = new stdClass();
+    $value_set->name = $form_state['values']['name'];
+    $value_set->title = $form_state['values']['title'];
+    $value_set->description = $form_state['values']['description'];
+
+    // Process the key|value pairs
+    $list = explode("\n", $form_state['values']['values']);
+    $list = array_map('trim', $list);
+    $list = array_filter($list, 'strlen');
+    foreach ($list as $position => $text) {
+      $value_set->data[$position]['weight'] = $position;
+      // Check for an explicit key.
+      $matches = array();
+      if (preg_match('/(.*)\|(.*)/', $text, $matches)) {
+        $value_set->data[$position]['key'] = $matches[1];
+        $value_set->data[$position]['value'] = $matches[2];
+      }
+      // Otherwise we'll create keys from the values
+      else {
+        $value_set->data[$position]['value'] = $text;
+        $value_set->data[$position]['key'] = preg_replace('/[^a-z0-9_]+/', '_', strtolower($text));
+      }
+    }
+    values_save($value_set);
+  }
+  else {
+    $code = $form_state['values']['import'] . "\nreturn \$value_set;";
+    $value_set = eval($code);
+    values_save($value_set);
+    $form_state['redirect'] = 'admin/structure/values/' . $value_set->name;
+  }
 }
 
 /***********************************************************************
