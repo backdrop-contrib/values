@@ -422,9 +422,9 @@ function values_import_form($form, &$form_state) {
       ),
     ),
   );
-  $form['import_csv'] = array(
+  $form['import_values'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Import CSV'),
+    '#title' => t('Import Values'),
     '#description' => 'Import a new value set as a flat set of key|value pairs. Useful for migrating from allowed values lists to value sets.',
     '#collapsible' => FALSE,
     '#states' => array(
@@ -433,25 +433,25 @@ function values_import_form($form, &$form_state) {
       ),
     ),
   );
-  $form['import_csv']['title'] = array(
+  $form['import_values']['title'] = array(
     '#type' => 'textfield',
     '#title' => t('Value set name'),
     '#description' => t('The human readable name of this value set.'),
     '#default_value' => '',
     '#weight' => -10,
   );
-  $form['import_csv']['name'] = array(
+  $form['import_values']['name'] = array(
     '#type' => 'machine_name',
     '#default_value' => '',
     '#weight' => -9,
     '#access' => !isset($value_set->name),
     '#after_build' => array('values_import_form_after_build'),
     '#machine_name' => array(
-      'source' => array('import_csv', 'title'),
+      'source' => array('import_values', 'title'),
       'exists' => '_values_name_exists',
     ),
   );
-  $form['import_csv']['description'] = array(
+  $form['import_values']['description'] = array(
     '#type' => 'textfield',
     '#title' => t('Description'),
     '#description' => t('A short description of the value set'),
@@ -459,10 +459,10 @@ function values_import_form($form, &$form_state) {
     '#weight' => -8.5,
   );
   // Wrapper for values
-  $form['import_csv']['values'] = array(
+  $form['import_values']['values'] = array(
     '#type' => 'textarea',
     '#title' => t('Import data'),
-    '#description' => t('Enter one value per line. If you wish to specify the key, use the format key|value.'),
+    '#description' => t('Enter one value per line. Keys will be generated automatically. If you wish to specify the key, use the format key|value.'),
     '#default_value' => '',
     '#rows' => 10,
   );
