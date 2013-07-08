@@ -404,6 +404,7 @@ function values_import_form($form, &$form_state) {
   $form['import_type'] = array(
     '#type' => 'radios',
     '#title' => t('Import Type'),
+    '#description' => t('Choose an import type. Import a previously exported value set, or import a flat list of values in a textarea.'),
     '#options' => array(
       'ctools' => 'Ctools Export',
       'values' => 'Flat List',
