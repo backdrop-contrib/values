@@ -151,7 +151,7 @@ function values_form($form, &$form_state, $action = 'edit', $value_set = NULL) {
     '#default_value' => isset($value_set->name) ? $value_set->name : '',
     '#required' => TRUE,
     '#weight' => -9,
-    '#access' => !isset($value_set->name),
+    '#disabled' => isset($value_set->name),
     '#machine_name' => array(
       'source' => array('title'),
       'exists' => '_values_name_exists',
@@ -533,17 +533,16 @@ function values_import_form_submit(&$form, &$form_state) {
       // Otherwise we'll create keys from the values
       else {
         $value_set->data[$position]['value'] = $text;
-        $value_set->data[$position]['key'] = preg_replace('/[^a-z0-9_]+/', '_', strtolower($text));
+        $value_set->data[$position]['key'] = values_machine_name($text);
       }
     }
-    values_save($value_set);
   }
   else {
     $code = $form_state['values']['import'] . "\nreturn \$value_set;";
     $value_set = eval($code);
-    values_save($value_set);
-    $form_state['redirect'] = 'admin/structure/values/' . $value_set->name;
   }
+  values_save($value_set);
+  $form_state['redirect'] = 'admin/structure/values/' . $value_set->name;
 }
 
 /***********************************************************************
@@ -788,6 +787,16 @@ function values_sort_by_weight($a, $b) {
     return 0;
   }
   return ($a_weight < $b_weight) ? -1 : 1;
+}
+
+/**
+ * Converts a string to a machine name by stripping out non-alphanumeric
+ * characters (except underscores)
+ */
+function values_machine_name($value) {
+  $machine_name = trim(preg_replace('/[^a-z0-9]+/', '_', strtolower($value)), '_');
+
+  return $machine_name;
 }
 
 /***********************************************************************
