@@ -766,7 +766,7 @@ function values_load_options($name) {
   $options = array();
   if (!empty($value_set->data)) {
     foreach ($value_set->data as $delta => $value) {
-      $options[$value['key']] = $value['value'];
+      $options[$value['key']] = t('@value', array($value['value']));
     }
   }
   return $options;
