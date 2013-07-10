@@ -669,7 +669,7 @@ function values_load($name, $reset = FALSE) {
     if ($reset || !isset($value_sets[$name])) {
       $value_sets[$name] = db_query("SELECT * FROM {values_sets} WHERE name = :name", array(':name' => $name))->fetchObject();
       if (isset($value_sets[$name]->data)) {
-        $value_sets[$name]->value_sets = unserialize($value_sets[$name]->data);
+        $value_sets[$name]->data = unserialize($value_sets[$name]->data);
       }
     }
   }
