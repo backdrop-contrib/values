@@ -15,6 +15,11 @@ function values_schema() {
       'key' => 'name',
       'identifier' => 'values',
       'default hook' => 'default_values_values',
+      'load callback' => 'values_load',
+      'load all callback' => 'values_load_all',
+      'save callback' => 'values_save',
+      'delete callback' => 'values_delete',
+      'export callback' => 'values_export',
       'api' => array(
         'owner' => 'values',
         'api' => 'default_values_sets',

@@ -37,7 +37,7 @@ function values_menu() {
   );
   $items['admin/structure/values/list'] = array(
     'title' => 'List',
-    'weight' => -10,
+    // 'weight' => -10,
     'type' => MENU_DEFAULT_LOCAL_TASK,
   );
   $items['admin/structure/values/add'] = array(
@@ -45,7 +45,7 @@ function values_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'add'),
     'access arguments' => array('administer values'),
-    'weight' => -9,
+    // 'weight' => -9,
     'type' => MENU_LOCAL_ACTION,
   );
   $items['admin/structure/values/import'] = array(
@@ -53,15 +53,17 @@ function values_menu() {
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_import_form'),
     'access arguments' => array('administer values'),
-    'weight' => -8,
+    // 'weight' => -8,
     'type' => MENU_LOCAL_TASK,
   );
   $items['admin/structure/values/%values'] = array(
     'title' => 'Values',
+    'title callback' => 'value_set_page_title',
+    'title arguments' => array(3),
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'edit', 3),
     'access arguments' => array('administer values'),
-    'type' => MENU_CALLBACK,
+    // 'type' => MENU_CALLBACK,
   );
   $items['admin/structure/values/%values/edit'] = array(
     'title' => 'Edit',
@@ -72,7 +74,17 @@ function values_menu() {
     'title' => 'Delete',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_delete_confirm', 3),
-    'access arguments' => array('administer values'),
+    'access callback' => 'values_delete_access',
+    'access arguments' => array(3),
+    'weight' => -8,
+    'type' => MENU_LOCAL_TASK,
+  );
+  $items['admin/structure/values/%values/revert'] = array(
+    'title' => 'Revert',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('values_delete_confirm', 3),
+    'access callback' => 'values_revert_access',
+    'access arguments' => array(3),
     'weight' => -8,
     'type' => MENU_LOCAL_TASK,
   );
@@ -131,7 +143,11 @@ function values_form($form, &$form_state, $action = 'edit', $value_set = NULL) {
     usort($value_set->data, 'values_sort_by_weight');
   }
   else {
-    $value_set = values_load($value_set, TRUE);
+    // If the argument is a string, aka a value set name, we load it
+    // otherwise we assume it's a value set object
+    if (is_string($value_set)) {
+      $value_set = values_load($value_set, TRUE);
+    }
   }
   $form = array();
   $form['action'] = array(
@@ -337,15 +353,22 @@ function values_form_js($form, $form_state) {
  * Confirmation form to delete a value object from the database.
  */
 function values_delete_confirm($form, &$form_state, $value_set) {
-  $form['name'] = array(
+  $form['value_set'] = array(
     '#type' => 'value',
-    '#value' => $value_set->name,
+    '#value' => $value_set,
   );
+  $action = 'delete';
+  // If ctools is installed we need to handle the delete link specially.
+  if (module_exists('ctools')) {
+    if ($value_set->export_type > 1) {
+      $action = 'revert';
+    }
+  }
   return confirm_form($form,
-    t('Are you sure you want to delete !name?', array('!name' => $value_set->name)),
+    t('Are you sure you want to !action !name?', array('!action' => $action, '!name' => $value_set->name)),
     'admin/structure/values',
     t('This action cannot be undone.'),
-    t('Delete'),
+    t('!action', array('!action' => ucwords($action))),
     t('Cancel')
   );
 }
@@ -354,9 +377,17 @@ function values_delete_confirm($form, &$form_state, $value_set) {
  * Calls deletion of a value object.
  */
 function values_delete_confirm_submit(&$form, &$form_state) {
-  values_delete($form_state['values']['name']);
+  $value_set = $form_state['values']['value_set'];
+  values_delete($value_set);
   $form_state['redirect'] = 'admin/structure/values';
-  drupal_set_message(t('Value list !name was deleted.', array('!name' => $form_state['values']['name'])));
+  $action = 'deleted';
+  // If ctools is installed we need to change the language a bit of the message
+  if (module_exists('ctools')) {
+    if ($value_set->export_type > 1) {
+      $action = 'reverted';
+    }
+  }
+  drupal_set_message(t('Value list !name was !action.', array('!action' => $action, '!name' => $value_set->name)));
 }
 
 /***********************************************************************
@@ -612,18 +643,27 @@ function values_sets_page() {
   $header = array(
     t('Name'),
     t('Description'),
-    array('data' => t('Operations'), 'colspan' => 2),
+    array('data' => t('Operations')),
   );
   $rows = array();
   // Get all the configured value sets and create a nice table
-  $result = db_query('SELECT * FROM {values_sets}');
-  foreach ($result as $value_set) {
+  $value_sets = values_load_all();
+  foreach ($value_sets as $value_set) {
+    $delete_link = l(t('delete'), 'admin/structure/values/' . $value_set->name . '/delete') . ' | ';
+    // If ctools is installed we need to handle the delete link specially.
+    if (module_exists('ctools')) {
+      if ($value_set->export_type == 2) {
+        $delete_link = '';
+      }
+      if ($value_set->export_type == 3) {
+        $delete_link = l(t('revert'), 'admin/structure/values/' . $value_set->name . '/revert') . ' | ';
+      }
+    }
     $rows[] = array(
       $value_set->title,
       $value_set->description,
-      // $value_set->name,
-      l(t('edit'), 'admin/structure/values/' . $value_set->name . '/edit'),
-      l(t('delete'), 'admin/structure/values/' . $value_set->name . '/delete'),
+      l(t('edit'), 'admin/structure/values/' . $value_set->name) . ' | ' . $delete_link .
+      l(t('export'), 'admin/structure/values/' . $value_set->name . '/export'),
     );
   }
   $table['values_sets'] = array(
@@ -665,7 +705,7 @@ function values_load($name, $reset = FALSE) {
   }
   else {
     // In the absence of ctools, use our own basic static caching
-    static $value_sets = array();
+    $value_sets = &drupal_static(__FUNCTION__, array(), $reset);
     if ($reset || !isset($value_sets[$name])) {
       $value_sets[$name] = db_query("SELECT * FROM {values_sets} WHERE name = :name", array(':name' => $name))->fetchObject();
       if (isset($value_sets[$name]->data)) {
@@ -692,11 +732,17 @@ function values_load($name, $reset = FALSE) {
  * @return
  *    An array of all value sets
  */
-function values_load_all() {
-  $value_sets = array();
-  $query = db_query('SELECT name FROM {values_sets} ORDER BY title ASC');
-  foreach ($query as $record) {
-    $value_sets[$record->name] = values_load($record->name);
+function values_load_all($reset = FALSE) {
+  if (module_exists('ctools')) {
+    // Try using Chaos tools suite for exporting and caching
+    ctools_include('export');
+    $value_sets = ctools_export_load_object('values_sets');
+  }
+  else {
+    $query = db_query('SELECT name FROM {values_sets} ORDER BY title ASC');
+    foreach ($query as $record) {
+      $value_sets[$record->name] = values_load($record->name, $reset);
+    }
   }
   return $value_sets;
 }
@@ -798,6 +844,35 @@ function values_machine_name($value) {
   $machine_name = trim(preg_replace('/[^a-z0-9]+/', '_', strtolower($value)), '_');
 
   return $machine_name;
+}
+
+/**
+ * Page title callback for value sets
+ */
+function value_set_page_title($value_set) {
+  return $value_set->title;
+}
+
+/**
+ * Access callback for the revert page
+ */
+function values_revert_access($value_set) {
+  $access = FALSE;
+  if (module_exists('ctools') && $value_set->export_type > 2) {
+    $access = TRUE;
+  }
+  return $access;
+}
+
+/**
+ * Access callback for the delete page
+ */
+function values_delete_access($value_set) {
+  $access = user_access('administer values');
+  if (module_exists('ctools') && $value_set->export_type > 1) {
+    $access = FALSE;
+  }
+  return $access;
 }
 
 /***********************************************************************
