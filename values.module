@@ -253,7 +253,7 @@ function values_form($form, &$form_state, $action = 'edit', $value_set = NULL) {
       'callback' => 'values_form_js',
       'wrapper' => 'values-values',
       'method' => 'replace',
-      'effec' => 'fade',
+      'effect' => 'fade',
     ),
   );
   $form['submit'] = array(
