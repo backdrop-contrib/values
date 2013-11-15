@@ -570,7 +570,7 @@ function values_import_form_submit(&$form, &$form_state) {
     }
   }
   else {
-    $code = $form_state['values']['import'] . "\nreturn \$value_set;";
+    $code = $form_state['values']['import'] . "\nreturn \$values;";
     $value_set = eval($code);
   }
   values_save($value_set);
