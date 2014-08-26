@@ -408,15 +408,32 @@ function values_export_values($form, &$form_state, $value_set) {
       ));
   }
   drupal_set_title($value_set->title);
+
+  // Ctools Export
   $code = values_export($value_set);
   $lines = substr_count($code, "\n");
-  $form['export'] = array(
+  $form['export_ctools'] = array(
     '#title' => t('Export data'),
     '#type' => 'textarea',
     '#value' => $code,
     '#rows' => $lines,
     '#description' => t('Copy the export text and paste it into another value list using the import function.'),
   );
+
+  // Flat List
+  $code = '';
+  foreach ($value_set->data as $value) {
+    $code .= $value['key'] . '|' . $value['value'] . "\n";
+  }
+  $lines = count($value_set->data);
+  $form['export_flat'] = array(
+    '#title' => t('Flat Export List'),
+    '#type' => 'textarea',
+    '#value' => $code,
+    '#rows' => $lines,
+    '#description' => t('Flat list that emulates the CCK/Field module Allowed Values list style. Can also be used to import using the import function.'),
+  );
+
   return $form;
 }
 
