@@ -222,7 +222,7 @@ function values_form($form, &$form_state, $action = 'edit', $value_set = NULL) {
         '#type' => 'machine_name',
         '#title' => t('Key for value @n', array('@n' => ($delta + 1))),
         '#default_value' => isset($value_set->data[$delta]['key']) ? $value_set->data[$delta]['key'] : '',
-        '#description' => t('A key for this value. Can only contain lowercase letters, numbers, and underscores.'),
+        '#description' => t('A key for this value. Strips out HTML and other unsafe characters.'),
         '#after_build' => array('values_form_value_after_build'),
         '#machine_name' => array(
           'source' => array('values_wrapper', 'data', $delta, 'value'),
@@ -271,6 +271,8 @@ function values_form_value_after_build($element, &$form_state) {
   // We don't want the element to be required because if the "Add more" button
   // is clicked and an empty row is submitted, we'll get an error.
   $element['#required'] = FALSE;
+  // Remove the core element validate for the machine name field. We'll use our own.
+  $element['#element_validate'] = array_diff($element['#element_validate'], array('form_validate_machine_name'));
   // Add our own custom validation handler to do our own "required" validation
   array_unshift($element['#element_validate'], 'values_form_value_validate');
   return $element;
@@ -314,8 +316,8 @@ function values_form_submit(&$form, &$form_state) {
   foreach ($form_state['values']['data'] as $value) {
     if (!$value['remove']) {
       $value_set->data[] = array(
-        'key' => $value['key'],
-        'value' => $value['value'],
+        'key' => filter_xss($value['key'], array()),
+        'value' => filter_xss($value['value']),
         'weight' => $value['weight'],
       );
     }
