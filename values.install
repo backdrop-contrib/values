@@ -59,6 +59,25 @@ function values_schema() {
 }
 
 /**
+ * Grant new permissions to roles with the 'administer values' permission
+ */
+function values_update_7102(&$sandbox) {
+  foreach (user_role_permissions(user_roles()) as $rid => $permissions) {
+    // If the user previously had "administer values" we grant them all
+    // permissions
+    if (!empty($permissions['administer values'])) {
+      user_role_change_permissions($rid, array(
+        'create value sets' => TRUE,
+        'edit value sets' => TRUE,
+        'delete value sets' => TRUE,
+        'import value sets' => TRUE,
+        'export value sets' => TRUE,
+      ));
+    }
+  }
+}
+
+/**
  * Reformat values stored in database
  */
 function values_update_7101(&$sandbox) {

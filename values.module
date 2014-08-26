@@ -11,7 +11,6 @@
  *
  ***********************************************************************/
 
-
 /**
  * Implements hook_permission().
  */
@@ -19,7 +18,22 @@ function values_permission() {
   return array(
     'administer values' => array(
       'title' => t('Administer values'),
-      'description' => t('Allows the creation and configuration of reusable value sets.'),
+      'description' => t('Access the values administration page.'),
+    ),
+    'create value sets' => array(
+      'title' => t('Create value sets'),
+    ),
+    'edit value sets' => array(
+      'title' => t('Edit value sets'),
+    ),
+    'delete value sets' => array(
+      'title' => t('Delete value sets'),
+    ),
+    'import value sets' => array(
+      'title' => t('Import value sets'),
+    ),
+    'export value sets' => array(
+      'title' => t('Export value sets'),
     ),
   );
 }
@@ -44,7 +58,7 @@ function values_menu() {
     'title' => 'Create a value set',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'add'),
-    'access arguments' => array('administer values'),
+    'access arguments' => array('create value sets'),
     // 'weight' => -9,
     'type' => MENU_LOCAL_ACTION,
   );
@@ -52,7 +66,7 @@ function values_menu() {
     'title' => 'Import',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_import_form'),
-    'access arguments' => array('administer values'),
+    'access arguments' => array('import value sets'),
     // 'weight' => -8,
     'type' => MENU_LOCAL_TASK,
   );
@@ -62,7 +76,7 @@ function values_menu() {
     'title arguments' => array(3),
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_form', 'edit', 3),
-    'access arguments' => array('administer values'),
+    'access arguments' => array('edit value sets'),
     // 'type' => MENU_CALLBACK,
   );
   $items['admin/structure/values/%values/edit'] = array(
@@ -92,14 +106,14 @@ function values_menu() {
     'title' => 'Export',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('values_export_values', 3),
-    'access arguments' => array('administer values'),
+    'access arguments' => array('export value sets'),
     'weight' => -7,
     'type' => MENU_LOCAL_TASK,
   );
   $items['values/js'] = array(
     'title' => 'Javascript Values Form',
     'page callback' => 'values_form_js',
-    'access arguments' => array('administer values'),
+    'access arguments' => array('edit value sets'),
     'type' => MENU_CALLBACK,
   );
   return $items;
@@ -668,21 +682,32 @@ function values_sets_page() {
   // Get all the configured value sets and create a nice table
   $value_sets = values_load_all();
   foreach ($value_sets as $value_set) {
-    $delete_link = l(t('delete'), 'admin/structure/values/' . $value_set->name . '/delete') . ' | ';
-    // If ctools is installed we need to handle the delete link specially.
-    if (module_exists('ctools')) {
-      if ($value_set->export_type == 2) {
-        $delete_link = '';
+    $operations = array();
+    if (user_access('edit value sets')) {
+      $operations[] = l(t('edit'), 'admin/structure/values/' . $value_set->name);
+    }
+    if (user_access('delete value sets')) {
+      $delete_link = l(t('delete'), 'admin/structure/values/' . $value_set->name . '/delete');
+      // If ctools is installed we need to handle the delete link specially.
+      if (module_exists('ctools')) {
+        if ($value_set->export_type == 2) {
+          $delete_link = '';
+        }
+        if ($value_set->export_type == 3) {
+          $delete_link = l(t('revert'), 'admin/structure/values/' . $value_set->name . '/revert');
+        }
       }
-      if ($value_set->export_type == 3) {
-        $delete_link = l(t('revert'), 'admin/structure/values/' . $value_set->name . '/revert') . ' | ';
+      if ($delete_link) {
+        $operations[] = $delete_link;
       }
+    }
+    if (user_access('export value sets')) {
+      $operations[] = l(t('export'), 'admin/structure/values/' . $value_set->name . '/export');
     }
     $rows[] = array(
       $value_set->title,
       $value_set->description,
-      l(t('edit'), 'admin/structure/values/' . $value_set->name) . ' | ' . $delete_link .
-      l(t('export'), 'admin/structure/values/' . $value_set->name . '/export'),
+      implode(' | ', $operations),
     );
   }
   $table['values_sets'] = array(
@@ -887,7 +912,7 @@ function values_revert_access($value_set) {
  * Access callback for the delete page
  */
 function values_delete_access($value_set) {
-  $access = user_access('administer values');
+  $access = user_access('delete value sets');
   if (module_exists('ctools') && $value_set->export_type > 1) {
     $access = FALSE;
   }
