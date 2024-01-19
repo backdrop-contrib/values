@@ -179,7 +179,7 @@ function values_i18n_string_list($group) {
  * Form for adding a new value set.
  */
 function values_form($form, &$form_state, $action = 'edit', $value_set = NULL) {
-  if (!empty($form_state['values']['data'])) {
+  if (!empty($form_state['values']['data']) && $value_set) {
     $value_set->data = $form_state['values']['data'];
     usort($value_set->data, 'values_sort_by_weight');
   }
@@ -918,10 +918,12 @@ function values_load_options($name) {
  * Return a translated value if capable and a translation exists.
  */
 function values_translate($set, $key, $string, $options = array()) {
-  global $language;
-  $options += array(
-    'langcode' => $language->language,
-  );
+  if (module_exists('translation')) {
+    global $language;
+    $options += array(
+      'langcode' => $language->language,
+    );
+  }
 
   return function_exists('i18n_string') ? i18n_string('values:' . $set . ':' . $key . ':value', $string, $options) : $string;
 }

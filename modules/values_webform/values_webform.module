@@ -37,17 +37,6 @@ function values_webform_webform_select_options_info() {
  * @return array
  *         An array of optionn of options
  */
-function values_webform_webform_select_options($component, $flat, $filter, $arguments) {
-  return values_load_options($arguments['name']);
-}
-
-/**
- * Callback for the select options list for webform version 4.
- * @param  string $value_set_name
- *         The name of the value set to load
- * @return array
- *         An array of optionn of options
- */
-function values_webform_webform_v4_select_options($component, $flat, $arguments) {
+function values_webform_webform_select_options($component, $flat, $arguments) {
   return values_load_options($arguments['name']);
 }
