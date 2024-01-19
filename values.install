@@ -59,66 +59,8 @@ function values_schema() {
 }
 
 /**
- * Grant new permissions to roles with the 'administer values' permission
+ * Implements hook_update_last_removed().
  */
-function values_update_7102(&$sandbox) {
-  foreach (user_role_permissions(user_roles()) as $rid => $permissions) {
-    // If the user previously had "administer values" we grant them all
-    // permissions
-    if (!empty($permissions['administer values'])) {
-      user_role_change_permissions($rid, array(
-        'create value sets' => TRUE,
-        'edit value sets' => TRUE,
-        'delete value sets' => TRUE,
-        'import value sets' => TRUE,
-        'export value sets' => TRUE,
-      ));
-    }
-  }
-}
-
-/**
- * Reformat values stored in database
- */
-function values_update_7101(&$sandbox) {
-  foreach (values_load_all() as $value_set) {
-    foreach ($value_set->data as $delta => $value) {
-      if (!empty($value['label'])) {
-        $value_set->data[$delta] = array(
-          'key' => $value['value'],
-          'value' => $value['label'],
-          'weight' => $value['weight'],
-        );
-      }
-    }
-    $num_updated = db_update('values_sets')
-      ->fields(array(
-        'data' => serialize($value_set->data),
-      ))
-      ->condition('name', $value_set->name, '=')
-      ->execute();
-  }
-  return;
-}
-
-/**
- * Rename values_list table to values_sets. Add title column. Copy descriptions
- * to new title column
- */
-function values_update_7100(&$sandbox) {
-  db_rename_table('values_list', 'values_sets');
-  $spec = array(
-    'description' => 'Title of the value set',
-    'type' => 'varchar',
-    'length' => 255,
-  );
-  db_add_field('values_sets', 'title', $spec);
-  // Move the title column (on mysql only - pgsql doesn't have a way to do this
-  // without creating new columns in a specific order and deleting the old ones)
-  if (Database::getConnection()->driver() == 'mysql') {
-    db_query("ALTER table {values_sets} MODIFY COLUMN title varchar(255) AFTER name");
-  }
-  // Update the new title field with whatever was in description
-  db_query("UPDATE {values_sets} SET title = description");
-  return;
+function values_update_last_removed() {
+  return 7102;
 }
