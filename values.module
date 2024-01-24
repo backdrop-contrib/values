@@ -493,51 +493,12 @@ function values_export($value_set, $indent = '') {
 function values_import_form($form, &$form_state) {
   drupal_set_message(t('Importing a value list with a conflicting name will override it.'), 'warning');
 
-  // If the user has the ctools import permission, we allow them to a ctools
-  // export (raw php code that will be eval'd)
-  if (module_exists('ctools') && user_access('use ctools import')) {
-
-    $form['import_type'] = array(
-      '#type' => 'radios',
-      '#title' => t('Import Type'),
-      '#description' => t('Choose an import type. Import a previously exported value set, or import a flat list of values in a textarea.'),
-      '#options' => array(
-        'ctools' => 'Ctools Export',
-        'values' => 'Flat List',
-      ),
-      '#default_value' => 'ctools',
-    );
-
-    $form['import'] = array(
-      '#type' => 'textarea',
-      '#title' => t('Import data'),
-      '#description' => t('Copy the text from an previously exported value list and paste it here.'),
-      '#default_value' => isset($form_state['values']['import']) ? $form_state['values']['import'] : '',
-      '#rows' => 10,
-      '#states' => array(
-        'visible' => array(
-          ':input[name="import_type"]' => array('value' => 'ctools'),
-        ),
-      ),
-    );
-
-  }
-
   $form['import_values'] = array(
     '#type' => 'fieldset',
     '#title' => t('Import Values'),
     '#description' => 'Import a new value set as a flat set of key|value pairs. Useful for migrating from allowed values lists to value sets.',
     '#collapsible' => FALSE,
   );
-
-  // Add a state for import type toggle if ctools import is also an option
-  if (module_exists('ctools') && user_access('use ctools import')) {
-    $form['import_values']['#states'] = array(
-      'visible' => array(
-        ':input[name="import_type"]' => array('value' => 'values'),
-      ),
-    );
-  }
 
   $form['import_values']['title'] = array(
     '#type' => 'textfield',
@@ -599,8 +560,7 @@ function values_import_form_after_build($element, &$form_state) {
  * Validation handler for values list import
  */
 function values_import_form_name_validate(&$element, &$form_state) {
-  // If the import type is values and there is no name set
-  if ($form_state['values']['import_type'] == 'values' && !$form_state['values']['name']) {
+  if (!$form_state['values']['name']) {
     // This is borrowed from _form_validate() in form.inc line 1393
     if (isset($element['#title'])) {
       form_error($element, t('!name field is required.', array('!name' => $element['#title'])));
@@ -614,7 +574,7 @@ function values_import_form_name_validate(&$element, &$form_state) {
  * Validation handler for values list import
  */
 function values_import_form_validate(&$form, &$form_state) {
-  if ($form_state['values']['import_type'] == 'values' && !$form_state['values']['title']) {
+  if (!$form_state['values']['title']) {
     form_set_error('title', 'Value set title is required');
   }
 }
@@ -623,34 +583,28 @@ function values_import_form_validate(&$form, &$form_state) {
  * Submit function for value list import.
  */
 function values_import_form_submit(&$form, &$form_state) {
-  if ($form_state['values']['import_type'] == 'values') {
-    $value_set = new stdClass();
-    $value_set->name = $form_state['values']['name'];
-    $value_set->title = $form_state['values']['title'];
-    $value_set->description = $form_state['values']['description'];
+  $value_set = new stdClass();
+  $value_set->name = $form_state['values']['name'];
+  $value_set->title = $form_state['values']['title'];
+  $value_set->description = $form_state['values']['description'];
 
-    // Process the key|value pairs
-    $list = explode("\n", $form_state['values']['values']);
-    $list = array_map('trim', $list);
-    $list = array_filter($list, 'strlen');
-    foreach ($list as $position => $text) {
-      $value_set->data[$position]['weight'] = $position;
-      // Check for an explicit key.
-      $matches = array();
-      if (preg_match('/(.*)\|(.*)/', $text, $matches)) {
-        $value_set->data[$position]['key'] = $matches[1];
-        $value_set->data[$position]['value'] = $matches[2];
-      }
-      // Otherwise we'll create keys from the values
-      else {
-        $value_set->data[$position]['value'] = $text;
-        $value_set->data[$position]['key'] = values_machine_name($text);
-      }
+  // Process the key|value pairs
+  $list = explode("\n", $form_state['values']['values']);
+  $list = array_map('trim', $list);
+  $list = array_filter($list, 'strlen');
+  foreach ($list as $position => $text) {
+    $value_set->data[$position]['weight'] = $position;
+    // Check for an explicit key.
+    $matches = array();
+    if (preg_match('/(.*)\|(.*)/', $text, $matches)) {
+      $value_set->data[$position]['key'] = $matches[1];
+      $value_set->data[$position]['value'] = $matches[2];
     }
-  }
-  else {
-    $code = $form_state['values']['import'] . "\nreturn \$values;";
-    $value_set = eval($code);
+    // Otherwise we'll create keys from the values
+    else {
+      $value_set->data[$position]['value'] = $text;
+      $value_set->data[$position]['key'] = values_machine_name($text);
+    }
   }
   values_save($value_set);
   $form_state['redirect'] = 'admin/structure/values/' . $value_set->name;
