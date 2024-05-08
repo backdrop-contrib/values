@@ -482,8 +482,9 @@ function values_export_values($form, &$form_state, $value_set) {
  * Export a values list.
  */
 function values_export($value_set, $indent = '') {
-  ctools_include('export');
-  $output = ctools_export_object('values_sets', $value_set, $indent);
+  // removing ctools features that were not ported to backdrop core
+  //ctools_include('export');
+  //$output = ctools_export_object('values_sets', $value_set, $indent);
   return $output;
 }
 
@@ -743,9 +744,9 @@ function values_load($name, $reset = FALSE) {
     $name = $name->name;
   }
   if (module_exists('ctools')) {
-    // Try using Chaos tools suite for exporting and caching
-    ctools_include('export');
-    $value_sets = ctools_export_load_object('values_sets', 'names', array($name));
+    // removing ctools features that were not ported to backdrop core
+    //ctools_include('export');
+    //$value_sets = ctools_export_load_object('values_sets', 'names', array($name));
   }
   else {
     // In the absence of ctools, use our own basic static caching
@@ -778,9 +779,10 @@ function values_load($name, $reset = FALSE) {
  */
 function values_load_all($reset = FALSE) {
   if (module_exists('ctools')) {
+    // removing ctools features that were not ported to backdrop core
     // Try using Chaos tools suite for exporting and caching
-    ctools_include('export');
-    $value_sets = ctools_export_load_object('values_sets');
+    //ctools_include('export');
+    //$value_sets = ctools_export_load_object('values_sets');
   }
   else {
     $query = db_query('SELECT name FROM {values_sets} ORDER BY title ASC');
